@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Expressão Gênica</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧬 Visualizador de Expressão Gênica</h1>
+            <p>Análise de dados DESeq2 normalizados</p>
+        </header>
+
+        <div class="upload-section">
+            <h2>1. Upload do Arquivo CSV</h2>
+            <div class="upload-box">
+                <input type="file" id="fileInput" accept=".csv" />
+                <button id="uploadBtn" onclick="uploadFile()">Carregar Arquivo</button>
+            </div>
+            <div id="uploadStatus" class="status-message"></div>
+        </div>
+
+        <div id="geneSelectionSection" class="gene-section" style="display: none;">
+            <h2>2. Seleção de Genes</h2>
+
+            <div class="search-box">
+                <input type="text" id="geneSearch" placeholder="Buscar genes..." onkeyup="filterGenes()">
+            </div>
+
+            <div class="selection-controls">
+                <button onclick="selectAll()">Selecionar Todos</button>
+                <button onclick="deselectAll()">Limpar Seleção</button>
+                <button onclick="selectFromList()">Colar Lista</button>
+                <span id="selectedCount" class="selected-count">0 genes selecionados</span>
+            </div>
+
+            <div id="geneList" class="gene-list"></div>
+        </div>
+
+        <div id="plotSection" class="plot-section" style="display: none;">
+            <h2>3. Visualização</h2>
+
+            <div class="plot-controls">
+                <label>Tipo de Gráfico:</label>
+                <select id="plotType">
+                    <option value="bar">Gráfico de Barras</option>
+                    <option value="line">Gráfico de Linha</option>
+                    <option value="heatmap">Mapa de Calor</option>
+                    <option value="box">Box Plot</option>
+                </select>
+                <button onclick="generatePlot()" class="generate-btn">Gerar Gráfico</button>
+                <button onclick="downloadData()" class="download-btn">Baixar Dados</button>
+            </div>
+
+            <div id="plotContainer"></div>
+        </div>
+    </div>
+
+    <!-- Modal for pasting gene list -->
+    <div id="geneListModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Colar Lista de Genes</h3>
+            <p>Cole os nomes dos genes (um por linha):</p>
+            <textarea id="geneListInput" rows="10" placeholder="Gene1&#10;Gene2&#10;Gene3"></textarea>
+            <button onclick="applyGeneList()">Aplicar</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
