@@ -1,0 +1,165 @@
+{
+  "methodology": {
+    "description": "Weighted scoring of xenobiotics for immunometabolic-arboviral research",
+    "weights": {
+      "immunometabolic_evidence": 0.25,
+      "exposure_data_quality": 0.2,
+      "concentration_relevance": 0.2,
+      "geographic_overlap": 0.2,
+      "intervention_potential": 0.15
+    },
+    "scale": "1-5 for each criterion, weighted total"
+  },
+  "results": [
+    {
+      "id": "XEN003",
+      "name": "Arsenic (inorganic)",
+      "immunometabolic_evidence": 3.89,
+      "exposure_data_quality": 4.5,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 5.0,
+      "intervention_potential": 2.5,
+      "total_score": 4.25
+    },
+    {
+      "id": "XEN004",
+      "name": "DDT/DDE",
+      "immunometabolic_evidence": 3.16,
+      "exposure_data_quality": 3.9,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 5.0,
+      "intervention_potential": 3.5,
+      "total_score": 4.1
+    },
+    {
+      "id": "XEN014",
+      "name": "Paraquat",
+      "immunometabolic_evidence": 2.7600000000000007,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 5.0,
+      "intervention_potential": 4.0,
+      "total_score": 4.01
+    },
+    {
+      "id": "XEN007",
+      "name": "Chlorpyrifos",
+      "immunometabolic_evidence": 2.7600000000000007,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 3.0,
+      "intervention_potential": 4.0,
+      "total_score": 3.61
+    },
+    {
+      "id": "XEN013",
+      "name": "Mercury (methylmercury)",
+      "immunometabolic_evidence": 3.0600000000000005,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 3.75,
+      "intervention_potential": 2.5,
+      "total_score": 3.61
+    },
+    {
+      "id": "XEN009",
+      "name": "Cadmium",
+      "immunometabolic_evidence": 3.46,
+      "exposure_data_quality": 4.4,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.75,
+      "intervention_potential": 3.0,
+      "total_score": 3.54
+    },
+    {
+      "id": "XEN006",
+      "name": "Lead (Pb)",
+      "immunometabolic_evidence": 3.0600000000000005,
+      "exposure_data_quality": 3.9000000000000004,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 3.0,
+      "intervention_potential": 2.5,
+      "total_score": 3.52
+    },
+    {
+      "id": "XEN011",
+      "name": "Atrazine",
+      "immunometabolic_evidence": 2.7600000000000007,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 2.5,
+      "intervention_potential": 3.5,
+      "total_score": 3.44
+    },
+    {
+      "id": "XEN005",
+      "name": "TCDD (2,3,7,8-Tetrachlorodibenzo-p-dioxin)",
+      "immunometabolic_evidence": 4.19,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.75,
+      "intervention_potential": 2.0,
+      "total_score": 3.42
+    },
+    {
+      "id": "XEN012",
+      "name": "Bisphenol A (BPA)",
+      "immunometabolic_evidence": 3.46,
+      "exposure_data_quality": 4.1,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.0,
+      "intervention_potential": 3.5,
+      "total_score": 3.41
+    },
+    {
+      "id": "XEN010",
+      "name": "Glyphosate",
+      "immunometabolic_evidence": 2.7600000000000007,
+      "exposure_data_quality": 4.4,
+      "concentration_relevance": 3.5,
+      "geographic_overlap": 2.5,
+      "intervention_potential": 4.0,
+      "total_score": 3.37
+    },
+    {
+      "id": "XEN002",
+      "name": "PFOS (Perfluorooctane sulfonate)",
+      "immunometabolic_evidence": 3.0600000000000005,
+      "exposure_data_quality": 4.1,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.0,
+      "intervention_potential": 3.5,
+      "total_score": 3.31
+    },
+    {
+      "id": "XEN015",
+      "name": "Di(2-ethylhexyl) phthalate (DEHP)",
+      "immunometabolic_evidence": 3.0600000000000005,
+      "exposure_data_quality": 4.1,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.0,
+      "intervention_potential": 3.5,
+      "total_score": 3.31
+    },
+    {
+      "id": "XEN001",
+      "name": "PFOA (Perfluorooctanoic acid)",
+      "immunometabolic_evidence": 3.3899999999999997,
+      "exposure_data_quality": 4.4,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 0.0,
+      "intervention_potential": 3.5,
+      "total_score": 3.25
+    },
+    {
+      "id": "XEN008",
+      "name": "Benzo[a]pyrene",
+      "immunometabolic_evidence": 3.46,
+      "exposure_data_quality": 3.6,
+      "concentration_relevance": 5.0,
+      "geographic_overlap": 1.0,
+      "intervention_potential": 2.5,
+      "total_score": 3.16
+    }
+  ]
+}

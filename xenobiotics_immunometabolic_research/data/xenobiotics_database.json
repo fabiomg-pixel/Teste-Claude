@@ -1,0 +1,456 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-01-04",
+    "description": "Database of xenobiotics with immunometabolic effects for arboviral disease research"
+  },
+  "xenobiotics": [
+    {
+      "id": "XEN001",
+      "name": "PFOA (Perfluorooctanoic acid)",
+      "class": "PFAS",
+      "cas_number": "335-67-1",
+      "immunometabolic_effects": {
+        "pathways": ["NF-κB", "PPAR-α", "immunoglobulin production"],
+        "cell_types_affected": ["B cells", "T cells", "macrophages"],
+        "effects": ["reduced vaccine antibody response", "altered cytokine profiles", "immunosuppression"],
+        "key_references": ["PMID:25629279", "PMID:31881124", "PMID:33069756"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 2.0, "p95": 8.0},
+        "contaminated_area_range_ng_mL": {"median": 20.0, "max_reported": 1800.0},
+        "contamination_sites": ["Parkersburg WV USA", "Veneto Italy", "Dordrecht Netherlands", "Ronneby Sweden"],
+        "biomonitoring_source": "NHANES, C8 Health Study"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_ng_mL": {"LOAEL": 50, "typical_range": "10-1000"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["limited"],
+        "notes": "Primary contamination in temperate regions, but PFAS contamination expanding globally"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN002",
+      "name": "PFOS (Perfluorooctane sulfonate)",
+      "class": "PFAS",
+      "cas_number": "1763-23-1",
+      "immunometabolic_effects": {
+        "pathways": ["NF-κB", "PPAR-α", "hepatic lipid metabolism"],
+        "cell_types_affected": ["B cells", "NK cells", "hepatocytes"],
+        "effects": ["immunosuppression", "altered lipid homeostasis", "reduced antibody titers"],
+        "key_references": ["PMID:23932235", "PMID:28528347"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 5.0, "p95": 20.0},
+        "contaminated_area_range_ng_mL": {"median": 30.0, "max_reported": 500.0},
+        "contamination_sites": ["Military bases worldwide", "3M facilities"],
+        "biomonitoring_source": "NHANES, HBM4EU"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_ng_mL": {"LOAEL": 100, "typical_range": "50-500"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Southeast Asia - military bases", "Panama", "Philippines"],
+        "notes": "US military installations in dengue-endemic areas"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN003",
+      "name": "Arsenic (inorganic)",
+      "class": "Heavy metal",
+      "cas_number": "7440-38-2",
+      "immunometabolic_effects": {
+        "pathways": ["Nrf2", "NF-κB", "mitochondrial function", "inflammasome"],
+        "cell_types_affected": ["macrophages", "dendritic cells", "T cells"],
+        "effects": ["impaired macrophage function", "altered cytokine production", "oxidative stress", "epigenetic changes"],
+        "key_references": ["PMID:28711461", "PMID:30684847", "PMID:26812057"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 1.0, "p95": 10.0},
+        "contaminated_area_range_ug_L": {"median": 50.0, "max_reported": 500.0},
+        "contamination_sites": ["Bangladesh", "West Bengal India", "Argentina", "Chile", "Vietnam", "Taiwan"],
+        "biomonitoring_source": "Regional studies, WHO data"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 1, "typical_range": "0.1-10"},
+        "notes": "1 uM = 75 ug/L arsenic",
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Bangladesh - HIGH (dengue endemic)", "Vietnam - HIGH", "Taiwan - HIGH", "India - HIGH"],
+        "notes": "EXCELLENT overlap - arsenic contamination in major dengue hotspots"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN004",
+      "name": "DDT/DDE",
+      "class": "Organochlorine pesticide",
+      "cas_number": "50-29-3",
+      "immunometabolic_effects": {
+        "pathways": ["estrogen receptor", "AhR", "PPAR", "lipid metabolism"],
+        "cell_types_affected": ["lymphocytes", "macrophages"],
+        "effects": ["immunomodulation", "altered T cell function", "endocrine disruption"],
+        "key_references": ["PMID:15147474", "PMID:22155349"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 1.0, "p95": 10.0},
+        "contaminated_area_range_ng_mL": {"median": 50.0, "max_reported": 200.0},
+        "contamination_sites": ["Sub-Saharan Africa (ongoing use)", "India", "South America"],
+        "biomonitoring_source": "WHO malaria control data"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 1, "typical_range": "1-100"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Sub-Saharan Africa - HIGH", "India - HIGH", "South America - HIGH"],
+        "notes": "PERFECT overlap - DDT still used for malaria control in arboviral endemic regions"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN005",
+      "name": "TCDD (2,3,7,8-Tetrachlorodibenzo-p-dioxin)",
+      "class": "Dioxin",
+      "cas_number": "1746-01-6",
+      "immunometabolic_effects": {
+        "pathways": ["AhR - primary", "NF-κB", "Th17/Treg balance", "lipid metabolism"],
+        "cell_types_affected": ["T cells", "B cells", "dendritic cells", "macrophages"],
+        "effects": ["immunosuppression", "altered differentiation", "metabolic reprogramming", "trained immunity modulation"],
+        "key_references": ["PMID:24304584", "PMID:28433872", "PMID:31628503"]
+      },
+      "exposure_data": {
+        "general_population_range_pg_g_lipid": {"median": 3.0, "p95": 15.0},
+        "contaminated_area_range_pg_g_lipid": {"median": 30.0, "max_reported": 1000.0},
+        "contamination_sites": ["Vietnam (Agent Orange)", "Seveso Italy", "Times Beach USA"],
+        "biomonitoring_source": "Vietnamese health studies, Seveso cohort"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_pM": {"LOAEL": 10, "typical_range": "1-1000"},
+        "notes": "Active at extremely low concentrations",
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Vietnam - HIGH (dengue, Zika)", "legacy contamination"],
+        "notes": "Agent Orange legacy areas overlap with current dengue hotspots in Vietnam"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN006",
+      "name": "Lead (Pb)",
+      "class": "Heavy metal",
+      "cas_number": "7439-92-1",
+      "immunometabolic_effects": {
+        "pathways": ["NF-κB", "oxidative stress", "calcium signaling"],
+        "cell_types_affected": ["macrophages", "neutrophils", "lymphocytes"],
+        "effects": ["impaired phagocytosis", "altered cytokine production", "Th1/Th2 imbalance"],
+        "key_references": ["PMID:17084489", "PMID:26474509"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_dL": {"median": 1.0, "p95": 3.5},
+        "contaminated_area_range_ug_dL": {"median": 10.0, "max_reported": 70.0},
+        "contamination_sites": ["Kabwe Zambia", "La Oroya Peru", "Agbogbloshie Ghana", "Santo Amaro Brazil"],
+        "biomonitoring_source": "Pure Earth data, local studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 0.5, "typical_range": "0.1-10"},
+        "notes": "1 uM = 20 ug/dL",
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Peru - HIGH", "Brazil - HIGH", "Ghana - HIGH (yellow fever)", "Zambia - MODERATE"],
+        "notes": "E-waste and mining sites in arboviral regions"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN007",
+      "name": "Chlorpyrifos",
+      "class": "Organophosphate pesticide",
+      "cas_number": "2921-88-2",
+      "immunometabolic_effects": {
+        "pathways": ["cholinergic anti-inflammatory pathway", "oxidative stress", "mitochondrial dysfunction"],
+        "cell_types_affected": ["macrophages", "lymphocytes"],
+        "effects": ["immunomodulation", "neuroinflammation", "altered cytokine balance"],
+        "key_references": ["PMID:27836579", "PMID:30849551"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 0.5, "p95": 5.0},
+        "contaminated_area_range_ug_L": {"median": 10.0, "max_reported": 100.0},
+        "contamination_sites": ["Agricultural regions globally", "Central America", "Southeast Asia"],
+        "biomonitoring_source": "Agricultural worker studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 1, "typical_range": "0.1-50"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Central America - HIGH", "Southeast Asia - HIGH", "South America - HIGH"],
+        "notes": "Agricultural regions with heavy pesticide use overlap with dengue transmission"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN008",
+      "name": "Benzo[a]pyrene",
+      "class": "PAH",
+      "cas_number": "50-32-8",
+      "immunometabolic_effects": {
+        "pathways": ["AhR", "NF-κB", "DNA damage response", "metabolic activation"],
+        "cell_types_affected": ["macrophages", "dendritic cells", "T cells"],
+        "effects": ["immunosuppression", "altered antigen presentation", "DNA adduct formation"],
+        "key_references": ["PMID:17981658", "PMID:24368333"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 0.01, "p95": 0.1},
+        "contaminated_area_range_ng_mL": {"median": 0.5, "max_reported": 5.0},
+        "contamination_sites": ["Industrial cities", "Oil refinery areas", "Urban centers with traffic pollution"],
+        "biomonitoring_source": "Urinary metabolites (1-OHP)"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_nM": {"LOAEL": 100, "typical_range": "10-1000"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Urban areas in Southeast Asia", "African cities", "Latin American cities"],
+        "notes": "Urban air pollution in dengue-endemic cities"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN009",
+      "name": "Cadmium",
+      "class": "Heavy metal",
+      "cas_number": "7440-43-9",
+      "immunometabolic_effects": {
+        "pathways": ["Nrf2", "metallothionein", "oxidative stress", "calcium signaling"],
+        "cell_types_affected": ["macrophages", "T cells", "B cells"],
+        "effects": ["immunomodulation", "kidney damage affecting cytokine clearance", "altered antibody production"],
+        "key_references": ["PMID:28109728", "PMID:25596796"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 0.3, "p95": 1.0},
+        "contaminated_area_range_ug_L": {"median": 5.0, "max_reported": 30.0},
+        "contamination_sites": ["Jinzu River Japan", "Mining areas globally", "E-waste sites", "Rice paddies with contaminated water"],
+        "biomonitoring_source": "NHANES, Asian biomonitoring studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 1, "typical_range": "0.1-10"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Southeast Asia - HIGH (rice cultivation)", "Africa - mining areas"],
+        "notes": "Rice contamination in dengue-endemic Asia"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN010",
+      "name": "Glyphosate",
+      "class": "Herbicide",
+      "cas_number": "1071-83-6",
+      "immunometabolic_effects": {
+        "pathways": ["gut microbiome", "shikimate pathway (bacteria)", "mitochondrial function"],
+        "cell_types_affected": ["gut epithelium", "systemic effects via microbiome"],
+        "effects": ["microbiome dysbiosis", "intestinal permeability", "indirect immune effects"],
+        "key_references": ["PMID:31442459", "PMID:33046426"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 1.0, "p95": 5.0},
+        "contaminated_area_range_ug_L": {"median": 10.0, "max_reported": 100.0},
+        "contamination_sites": ["Soy/corn agricultural regions", "Argentina", "Brazil", "Southeast Asia"],
+        "biomonitoring_source": "NHANES, agricultural studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_effects_mg_L": {"LOAEL": 10, "typical_range": "1-1000"},
+        "notes": "Effects often studied via microbiome, less direct immunotoxicity data",
+        "relevant_to_human_exposure": "uncertain"
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Brazil - VERY HIGH", "Argentina - HIGH", "Paraguay", "Southeast Asia"],
+        "notes": "Massive use in soy cultivation in dengue-endemic South America"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN011",
+      "name": "Atrazine",
+      "class": "Herbicide",
+      "cas_number": "1912-24-9",
+      "immunometabolic_effects": {
+        "pathways": ["endocrine disruption", "NF-κB", "oxidative stress"],
+        "cell_types_affected": ["lymphocytes", "macrophages"],
+        "effects": ["immunomodulation", "endocrine disruption", "altered immune cell populations"],
+        "key_references": ["PMID:22172606", "PMID:27825321"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 0.1, "p95": 1.0},
+        "contaminated_area_range_ug_L": {"median": 5.0, "max_reported": 50.0},
+        "contamination_sites": ["US Midwest", "Argentina", "Brazil"],
+        "biomonitoring_source": "Agricultural studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 10, "typical_range": "1-100"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Brazil - HIGH", "Argentina - HIGH"],
+        "notes": "Corn belt herbicide in dengue regions"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN012",
+      "name": "Bisphenol A (BPA)",
+      "class": "Plasticizer/Endocrine disruptor",
+      "cas_number": "80-05-7",
+      "immunometabolic_effects": {
+        "pathways": ["estrogen receptor", "PPAR-γ", "NF-κB", "epigenetic modification"],
+        "cell_types_affected": ["macrophages", "T cells", "adipocytes"],
+        "effects": ["altered macrophage polarization", "Th1/Th2 skewing", "metabolic inflammation"],
+        "key_references": ["PMID:28371545", "PMID:27021138"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 1.5, "p95": 10.0},
+        "contaminated_area_range_ng_mL": {"median": 5.0, "max_reported": 50.0},
+        "contamination_sites": ["Urban areas globally", "Plastic manufacturing regions"],
+        "biomonitoring_source": "NHANES, HBM4EU"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_nM": {"LOAEL": 1, "typical_range": "1-1000"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Global urban exposure", "All endemic regions"],
+        "notes": "Ubiquitous exposure, not geographically specific"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN013",
+      "name": "Mercury (methylmercury)",
+      "class": "Heavy metal",
+      "cas_number": "22967-92-6",
+      "immunometabolic_effects": {
+        "pathways": ["oxidative stress", "selenoprotein inhibition", "NF-κB"],
+        "cell_types_affected": ["macrophages", "T cells", "B cells"],
+        "effects": ["autoimmunity", "immunosuppression at high doses", "altered cytokine production"],
+        "key_references": ["PMID:17456467", "PMID:24139130"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 1.0, "p95": 5.0},
+        "contaminated_area_range_ug_L": {"median": 20.0, "max_reported": 200.0},
+        "contamination_sites": ["Amazon gold mining", "Minamata Japan", "ASGM sites globally"],
+        "biomonitoring_source": "Fish-eating population studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 0.5, "typical_range": "0.1-10"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Amazon basin - VERY HIGH (dengue, yellow fever)", "Southeast Asia ASGM sites"],
+        "notes": "EXCELLENT overlap - artisanal gold mining in tropical arboviral regions"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN014",
+      "name": "Paraquat",
+      "class": "Herbicide",
+      "cas_number": "1910-42-5",
+      "immunometabolic_effects": {
+        "pathways": ["oxidative stress - primary", "mitochondrial toxicity", "inflammasome"],
+        "cell_types_affected": ["macrophages", "lung epithelium"],
+        "effects": ["oxidative damage", "inflammation", "fibrosis"],
+        "key_references": ["PMID:24463161", "PMID:28390462"]
+      },
+      "exposure_data": {
+        "general_population_range_ug_L": {"median": 0.0, "p95": 0.1},
+        "contaminated_area_range_ug_L": {"median": 1.0, "max_reported": 50.0},
+        "contamination_sites": ["Southeast Asia agricultural", "Central America", "South America"],
+        "biomonitoring_source": "Agricultural worker studies"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 1, "typical_range": "0.1-100"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Southeast Asia - HIGH", "Central America - HIGH", "Brazil - HIGH"],
+        "notes": "Heavy use in tropical agriculture, perfect overlap"
+      },
+      "priority_score": null
+    },
+    {
+      "id": "XEN015",
+      "name": "Di(2-ethylhexyl) phthalate (DEHP)",
+      "class": "Phthalate",
+      "cas_number": "117-81-7",
+      "immunometabolic_effects": {
+        "pathways": ["PPAR-γ", "estrogen receptor", "NF-κB"],
+        "cell_types_affected": ["macrophages", "T cells", "adipocytes"],
+        "effects": ["altered macrophage function", "adipogenesis", "inflammatory skewing"],
+        "key_references": ["PMID:22546082", "PMID:27003700"]
+      },
+      "exposure_data": {
+        "general_population_range_ng_mL": {"median": 2.0, "p95": 20.0},
+        "contaminated_area_range_ng_mL": {"median": 10.0, "max_reported": 100.0},
+        "contamination_sites": ["PVC manufacturing areas", "Medical device exposure", "Global urban"],
+        "biomonitoring_source": "NHANES (metabolites)"
+      },
+      "effective_concentrations": {
+        "in_vitro_immune_effects_uM": {"LOAEL": 10, "typical_range": "1-100"},
+        "relevant_to_human_exposure": true
+      },
+      "geographic_overlap": {
+        "arboviral_endemic_regions": ["Urban areas in endemic regions"],
+        "notes": "Ubiquitous but not geographically specific"
+      },
+      "priority_score": null
+    }
+  ],
+  "arboviral_endemic_regions": [
+    {
+      "region": "Southeast Asia",
+      "countries": ["Thailand", "Vietnam", "Indonesia", "Philippines", "Malaysia", "Cambodia", "Myanmar"],
+      "primary_arboviruses": ["dengue", "Zika", "chikungunya", "Japanese encephalitis"],
+      "major_contamination_types": ["pesticides", "industrial pollution", "dioxin legacy (Vietnam)", "heavy metals"]
+    },
+    {
+      "region": "South Asia",
+      "countries": ["India", "Bangladesh", "Sri Lanka", "Nepal", "Pakistan"],
+      "primary_arboviruses": ["dengue", "chikungunya"],
+      "major_contamination_types": ["arsenic (groundwater)", "pesticides", "heavy metals", "air pollution"]
+    },
+    {
+      "region": "Latin America - Tropical",
+      "countries": ["Brazil", "Colombia", "Venezuela", "Ecuador", "Peru", "Paraguay"],
+      "primary_arboviruses": ["dengue", "Zika", "chikungunya", "yellow fever"],
+      "major_contamination_types": ["pesticides/herbicides", "mercury (mining)", "lead", "industrial"]
+    },
+    {
+      "region": "Central America & Caribbean",
+      "countries": ["Mexico", "Guatemala", "Honduras", "Nicaragua", "Costa Rica", "Panama", "Cuba", "Dominican Republic", "Puerto Rico"],
+      "primary_arboviruses": ["dengue", "Zika", "chikungunya"],
+      "major_contamination_types": ["pesticides", "heavy metals"]
+    },
+    {
+      "region": "Sub-Saharan Africa",
+      "countries": ["Nigeria", "Kenya", "Tanzania", "DRC", "Ghana", "Senegal", "Uganda"],
+      "primary_arboviruses": ["yellow fever", "dengue", "chikungunya", "Rift Valley fever"],
+      "major_contamination_types": ["DDT (malaria control)", "lead", "e-waste", "mining contamination"]
+    },
+    {
+      "region": "Pacific Islands",
+      "countries": ["Fiji", "French Polynesia", "Samoa", "Tonga"],
+      "primary_arboviruses": ["dengue", "Zika", "chikungunya"],
+      "major_contamination_types": ["limited industrial, some pesticide use"]
+    }
+  ]
+}

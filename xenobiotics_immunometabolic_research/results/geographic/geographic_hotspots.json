@@ -1,0 +1,301 @@
+{
+  "analysis": "Geographic overlap of xenobiotic contamination and arboviral disease",
+  "hotspots": [
+    {
+      "country": "Brazil",
+      "priority_score": 4.5,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "yellow_fever"
+      ],
+      "contaminants": [
+        "mercury",
+        "pesticides",
+        "lead"
+      ]
+    },
+    {
+      "country": "Vietnam",
+      "priority_score": 4.5,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "dioxin",
+        "arsenic",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "India",
+      "priority_score": 4.5,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "arsenic",
+        "DDT",
+        "pesticides",
+        "heavy_metals"
+      ]
+    },
+    {
+      "country": "Indonesia",
+      "priority_score": 4.2,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 4.4,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "mercury",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Colombia",
+      "priority_score": 4.2,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 4.4,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "yellow_fever"
+      ],
+      "contaminants": [
+        "mercury",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Thailand",
+      "priority_score": 4.2,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 4.4,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "pesticides",
+        "cadmium"
+      ]
+    },
+    {
+      "country": "Bangladesh",
+      "priority_score": 4.0,
+      "arboviral_burden": 3.0,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "arsenic",
+        "pesticides",
+        "lead"
+      ]
+    },
+    {
+      "country": "Mexico",
+      "priority_score": 3.8,
+      "arboviral_burden": 3.0,
+      "contamination_severity": 4.6,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "arsenic",
+        "pesticides",
+        "lead"
+      ]
+    },
+    {
+      "country": "Philippines",
+      "priority_score": 3.8,
+      "arboviral_burden": 4.0,
+      "contamination_severity": 3.6,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya",
+        "JE"
+      ],
+      "contaminants": [
+        "mercury",
+        "lead",
+        "PFAS"
+      ]
+    },
+    {
+      "country": "Nigeria",
+      "priority_score": 3.75,
+      "arboviral_burden": 2.5,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "yellow_fever",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "lead",
+        "DDT",
+        "PAH"
+      ]
+    },
+    {
+      "country": "Peru",
+      "priority_score": 3.75,
+      "arboviral_burden": 2.5,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "yellow_fever"
+      ],
+      "contaminants": [
+        "lead",
+        "mercury",
+        "arsenic"
+      ]
+    },
+    {
+      "country": "Honduras",
+      "priority_score": 3.6,
+      "arboviral_burden": 3.0,
+      "contamination_severity": 4.2,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Costa Rica",
+      "priority_score": 3.6,
+      "arboviral_burden": 3.0,
+      "contamination_severity": 4.2,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Ghana",
+      "priority_score": 3.25,
+      "arboviral_burden": 1.5,
+      "contamination_severity": 5.0,
+      "arboviral_diseases": [
+        "dengue",
+        "yellow_fever"
+      ],
+      "contaminants": [
+        "lead",
+        "mercury",
+        "DDT"
+      ]
+    },
+    {
+      "country": "Argentina",
+      "priority_score": 3.2,
+      "arboviral_burden": 1.5,
+      "contamination_severity": 4.9,
+      "arboviral_diseases": [
+        "dengue",
+        "zika",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "arsenic",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Senegal",
+      "priority_score": 3.2,
+      "arboviral_burden": 3.0,
+      "contamination_severity": 3.4,
+      "arboviral_diseases": [
+        "dengue",
+        "yellow_fever",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "DDT",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Tanzania",
+      "priority_score": 2.95,
+      "arboviral_burden": 1.5,
+      "contamination_severity": 4.4,
+      "arboviral_diseases": [
+        "dengue",
+        "chikungunya"
+      ],
+      "contaminants": [
+        "mercury",
+        "DDT"
+      ]
+    },
+    {
+      "country": "Kenya",
+      "priority_score": 2.95,
+      "arboviral_burden": 2.5,
+      "contamination_severity": 3.4,
+      "arboviral_diseases": [
+        "dengue",
+        "chikungunya",
+        "Rift_Valley_fever"
+      ],
+      "contaminants": [
+        "DDT",
+        "pesticides"
+      ]
+    },
+    {
+      "country": "Taiwan",
+      "priority_score": 2.35,
+      "arboviral_burden": 2.0,
+      "contamination_severity": 2.7,
+      "arboviral_diseases": [
+        "dengue",
+        "JE"
+      ],
+      "contaminants": [
+        "arsenic"
+      ]
+    }
+  ]
+}
