@@ -1,0 +1,17 @@
+# STOCKHOLM 1.0
+#=GF ID   Integrin_B_tail
+#=GF AC   PF07965.15
+#=GF DE   Integrin beta tail domain
+#=GF AU   Pfam
+#=GF TP   Domain
+#=GF CC   The cytoplasmic tail of integrin beta subunits is involved in
+#=GF CC   signal transduction and binding to cytoskeletal proteins.
+#=GF CC   Contains NPxY motifs important for integrin activation.
+
+Aedes_betaPS/1-45   LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+Aedes_betanu/1-45   LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+Droso_betaPS/1-45   LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+Human_ITGB1/1-45    LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+Human_ITGB3/1-45    LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+#=GC seq_cons       LLIYRVYRVRVGSRSRPPVEDTSRPEEYSLLPLKDPKNPLTEQVN
+//

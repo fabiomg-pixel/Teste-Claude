@@ -1,0 +1,60 @@
+# Integrinas identificadas em Aedes aegypti
+# Analise realizada com HMMER 3.4
+# Data: 2026-01-12
+
+## SUBUNIDADES ALFA (5 proteinas)
+
+1. XP_001663041.2 - integrin alpha-PS2
+   - Dominio: FG-GAP repeat (Integrin_alpha)
+   - E-value: 8.9e-45
+   - Score: 140.4
+   - Funcao: Subunidade alfa do receptor de integrinas
+
+2. XP_001650063.1 - integrin alpha-PS1
+   - Dominio: FG-GAP repeat (Integrin_alpha)
+   - E-value: 2.5e-45
+   - Score: 142.2
+   - Funcao: Subunidade alfa do receptor de integrinas
+
+3. XP_001663823.1 - integrin alpha-PS3
+   - Dominio: FG-GAP repeat (Integrin_alpha)
+   - E-value: 6.9e-45
+   - Score: 140.8
+   - Funcao: Subunidade alfa do receptor de integrinas
+
+4. XP_001657521.3 - integrin alpha-4
+   - Dominio: FG-GAP repeat (Integrin_alpha)
+   - E-value: 8.9e-45
+   - Score: 140.4
+   - Funcao: Subunidade alfa do receptor de integrinas
+
+5. XP_021702567.1 - integrin alpha-PS5
+   - Dominio: FG-GAP repeat (Integrin_alpha)
+   - E-value: 4.5e-45
+   - Score: 141.4
+   - Funcao: Subunidade alfa do receptor de integrinas
+
+
+## SUBUNIDADES BETA (2 proteinas)
+
+1. XP_001658392.1 - integrin beta-PS (myospheroid)
+   - Dominios: VWA domain (Integrin_beta) + Beta tail (Integrin_B_tail)
+   - E-value (VWA): 9.7e-59
+   - E-value (tail): 2.3e-36
+   - Score: 185.9 / 113.8
+   - Funcao: Subunidade beta principal, ortologa de myospheroid de Drosophila
+
+2. XP_001652176.2 - integrin beta-nu
+   - Dominios: VWA domain (Integrin_beta) + Beta tail (Integrin_B_tail)
+   - E-value (VWA): 9.7e-59
+   - E-value (tail): 2.3e-36
+   - Score: 185.9 / 113.7
+   - Funcao: Segunda subunidade beta, menos caracterizada
+
+
+## NOTAS
+
+- Em Drosophila melanogaster, existem 5 subunidades alfa (alphaPS1-5) e 2 beta (betaPS e betanu)
+- Aedes aegypti apresenta um padrao similar, sugerindo conservacao evolutiva
+- As integrinas PS (position-specific) sao essenciais para adesao celular e desenvolvimento
+- Potenciais alvos para estudos de interacao virus-hospedeiro

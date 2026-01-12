@@ -1,0 +1,22 @@
+#                                                               --- full sequence ---- --- best 1 domain ---- --- domain number estimation ----
+# target name        accession  query name           accession    E-value  score  bias   E-value  score  bias   exp reg clu  ov env dom rep inc description of target
+#------------------- ---------- -------------------- ---------- --------- ------ ----- --------- ------ -----   --- --- --- --- --- --- --- --- ---------------------
+XP_001650063.1       -          Integrin_alpha       PF01839.21   2.5e-45  142.2   2.2   2.5e-45  142.2   2.2   2.8   2   0   0   2   2   2   1 integrin alpha-PS1 [Aedes aegypti]
+XP_021702567.1       -          Integrin_alpha       PF01839.21   4.5e-45  141.4   3.0   4.5e-45  141.4   3.0   2.8   2   0   0   2   2   2   1 integrin alpha-PS5 [Aedes aegypti]
+XP_001663823.1       -          Integrin_alpha       PF01839.21   6.9e-45  140.8   5.0   1.1e-44  140.2   2.7   2.7   2   0   0   2   2   2   1 integrin alpha-PS3 [Aedes aegypti]
+XP_001657521.3       -          Integrin_alpha       PF01839.21   8.9e-45  140.4   3.1   8.9e-45  140.4   3.1   2.8   2   0   0   2   2   2   1 integrin alpha-4 [Aedes aegypti]
+XP_001663041.2       -          Integrin_alpha       PF01839.21   8.9e-45  140.4   3.1   8.9e-45  140.4   3.1   2.8   2   0   0   2   2   2   1 integrin alpha-PS2 [Aedes aegypti]
+XP_001652176.2       -          Integrin_beta        PF00362.22   9.7e-59  185.9  17.6   9.7e-59  185.9  17.6   2.2   2   0   0   2   2   2   1 integrin beta-nu [Aedes aegypti]
+XP_001658392.1       -          Integrin_beta        PF00362.22   9.7e-59  185.9  17.6   9.7e-59  185.9  17.6   2.2   2   0   0   2   2   2   1 integrin beta-PS [Aedes aegypti]
+XP_001658392.1       -          Integrin_B_tail      PF07965.15   2.3e-36  113.8   5.3     6e-36  112.4   5.3   1.8   1   0   0   1   1   1   1 integrin beta-PS [Aedes aegypti]
+XP_001652176.2       -          Integrin_B_tail      PF07965.15   2.3e-36  113.7   5.3     6e-36  112.4   5.3   1.8   1   0   0   1   1   1   1 integrin beta-nu [Aedes aegypti]
+#
+# Program:         hmmsearch
+# Version:         3.4 (Aug 2023)
+# Pipeline mode:   SEARCH
+# Query file:      hmm_profiles/integrin_profiles.hmm
+# Target file:     data/Aedes_aegypti_proteome.faa
+# Option settings: hmmsearch --tblout results/integrin_hits.tbl --domtblout results/integrin_domains.tbl -E 1e-5 hmm_profiles/integrin_profiles.hmm data/Aedes_aegypti_proteome.faa 
+# Current dir:     /home/user/Teste-Claude/integrin_analysis
+# Date:            Mon Jan 12 14:12:26 2026
+# [ok]
