@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }}{% endblock %}
+{% block content %}
+<div style="max-width:34rem;margin:20vh auto;text-align:center;padding:1.5rem">
+  <h1 style="font-family:var(--serif);font-size:3rem;margin:0">{{ code }}</h1>
+  <p class="muted">{{ message }}</p>
+  <p><a class="btn" href="/">Voltar à biblioteca</a></p>
+</div>
+{% endblock %}

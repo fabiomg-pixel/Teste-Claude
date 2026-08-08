@@ -48,3 +48,6 @@ Thumbs.db
 # Environment variables
 .env
 .env.local
+
+# Leitor de EPUB
+epub_reader/data/

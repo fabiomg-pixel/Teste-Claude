@@ -1,5 +1,9 @@
 # Visualizador de Expressão Gênica
 
+> Este repositório também contém o **[Leitor de EPUB com companheiro de leitura](epub_reader/)**,
+> em `epub_reader/` — um leitor de e-books cuja conversa com a LLM só conhece o
+> livro até onde você leu.
+
 Aplicação web interativa para visualização de dados de expressão gênica a partir de arquivos CSV com counts normalizados do DESeq2.
 
 ## Funcionalidades

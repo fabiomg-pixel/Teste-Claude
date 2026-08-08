@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Minha biblioteca{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/library.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="library">
+  <header class="library-header">
+    <div>
+      <h1>Minha biblioteca</h1>
+      <p>Leia EPUBs e converse sobre o livro com um companheiro de leitura que
+         só conhece o que você já leu.</p>
+    </div>
+    <div>
+      <button class="btn btn-primary" id="pick">Adicionar EPUB</button>
+      <input type="file" id="file" accept=".epub,application/epub+zip" multiple hidden>
+    </div>
+  </header>
+
+  <div class="warn hidden" id="llm-warn">
+    <strong>Conversa desativada.</strong> Defina a variável de ambiente
+    <code>ANTHROPIC_API_KEY</code> e reinicie o servidor para habilitar o
+    companheiro de leitura. A leitura funciona normalmente sem ela.
+  </div>
+
+  <div class="dropzone" id="drop">
+    <p><strong>Arraste um .epub aqui</strong> ou clique em “Adicionar EPUB”.</p>
+    <p style="font-size:.85rem">O arquivo fica só na sua máquina, dentro de <code>epub_reader/data/</code>.</p>
+    <div class="progress-line hidden" id="upload-bar"></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+  <div class="empty hidden" id="empty">
+    <p>Nenhum livro ainda. Comece adicionando um EPUB.</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/library.js') }}"></script>
+{% endblock %}

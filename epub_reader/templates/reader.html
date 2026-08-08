@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ book_title }}{% endblock %}
+{% block body_class %}reader-page{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/reader.css') }}">
+{% endblock %}
+
+{% block content %}
+<script>window.BOOK_ID = {{ book_id | tojson }};</script>
+
+<!-- ------------------------------------------------------------- painel esquerdo -->
+<aside class="panel" id="panel-left" aria-hidden="true">
+  <div class="panel-head">
+    <h2 id="left-title">Sumário</h2>
+    <button class="icon-btn" id="left-close" title="Fechar (Esc)">✕</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="toc" aria-selected="true">Sumário</button>
+    <button class="tab" role="tab" data-tab="bookmarks" aria-selected="false">Marcadores</button>
+    <button class="tab" role="tab" data-tab="highlights" aria-selected="false">Destaques</button>
+    <button class="tab" role="tab" data-tab="search" aria-selected="false">Busca</button>
+  </div>
+
+  <div class="panel-body" id="tab-toc"></div>
+
+  <div class="panel-body hidden" id="tab-bookmarks"></div>
+  <div class="panel-body hidden" id="tab-highlights"></div>
+
+  <div class="hidden" id="tab-search" style="flex:1;display:none;flex-direction:column;min-height:0">
+    <div class="search-box">
+      <input type="search" id="search-input" placeholder="Buscar no livro…">
+      <button class="btn" id="search-go">Buscar</button>
+    </div>
+    <div class="scope-row">
+      <label><input type="radio" name="scope" value="read" checked> só o que já li</label>
+      <label><input type="radio" name="scope" value="all"> livro inteiro</label>
+    </div>
+    <div class="panel-body" id="search-results"></div>
+  </div>
+</aside>
+
+<!-- -------------------------------------------------------------- painel da conversa -->
+<aside class="panel right" id="panel-chat" aria-hidden="true">
+  <div class="panel-head">
+    <h2>Conversar sobre o livro</h2>
+    <button class="icon-btn" id="chat-clear" title="Limpar conversa">🗑</button>
+    <button class="icon-btn" id="chat-close" title="Fechar">✕</button>
+  </div>
+
+  <div class="spoiler-guard">
+    <span>🔒</span>
+    <span id="chat-position">Só sei o que você já leu.</span>
+  </div>
+
+  <div class="modes" id="modes">
+    <button class="chip" data-mode="recapitular">Recapitular</button>
+    <button class="chip" data-mode="personagens">Quem é quem</button>
+    <button class="chip" data-mode="refletir">Refletir</button>
+    <button class="chip" data-mode="contexto">Contexto</button>
+  </div>
+
+  <div class="chat-log" id="chat-log"></div>
+
+  <form class="chat-form" id="chat-form">
+    <div class="selection-note hidden" id="chat-selection">
+      <span id="chat-selection-text"></span>
+      <button type="button" class="icon-btn" id="chat-selection-clear" style="width:1.2rem;height:1.2rem">✕</button>
+    </div>
+    <div class="input-row">
+      <textarea id="chat-input" rows="1" placeholder="Pergunte sobre o que você já leu…"></textarea>
+      <button class="btn btn-primary" type="submit" id="chat-send">Enviar</button>
+    </div>
+    <div class="chat-foot">
+      <label title="Responder apenas com base nos trechos do livro, sem conhecimento externo">
+        <input type="checkbox" id="chat-strict"> modo estrito
+      </label>
+      <span id="chat-hint">Enter envia · Shift+Enter quebra linha</span>
+    </div>
+  </form>
+</aside>
+
+<!-- ---------------------------------------------------------------------- leitura -->
+<div class="main">
+  <header class="topbar">
+    <a class="icon-btn" href="/" title="Biblioteca">←</a>
+    <button class="icon-btn" id="btn-toc" title="Sumário (s)">☰</button>
+    <div class="title">
+      <strong id="top-title">{{ book_title }}</strong>
+      <span id="top-chapter">{{ book_author }}</span>
+    </div>
+    <button class="icon-btn" id="btn-search" title="Buscar (/)">🔍</button>
+    <button class="icon-btn" id="btn-bookmark" title="Marcar esta página (b)">🔖</button>
+    <button class="icon-btn" id="btn-aa" title="Aparência (a)">Aa</button>
+    <button class="icon-btn" id="btn-chat" title="Conversar (c)">💬</button>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="viewport" id="viewport">
+      <div class="pages" id="pages"></div>
+    </div>
+    <button class="nav-zone prev" id="prev" aria-label="Página anterior">‹</button>
+    <button class="nav-zone next" id="next" aria-label="Próxima página">›</button>
+
+    <div class="popover hidden" id="settings">
+      <div class="setting">
+        <label>Tema</label>
+        <div class="row">
+          <button class="swatch" data-theme-value="claro" title="Claro"></button>
+          <button class="swatch" data-theme-value="sepia" title="Sépia"></button>
+          <button class="swatch" data-theme-value="escuro" title="Escuro"></button>
+          <button class="swatch" data-theme-value="noturno" title="Noturno"></button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Tamanho do texto — <span id="size-label">20</span>px</label>
+        <input type="range" id="set-size" min="14" max="34" step="1">
+      </div>
+      <div class="setting">
+        <label>Entrelinha — <span id="leading-label">1,62</span></label>
+        <input type="range" id="set-leading" min="1.2" max="2.2" step="0.02">
+      </div>
+      <div class="setting">
+        <label>Largura da coluna — <span id="measure-label">34</span>rem</label>
+        <input type="range" id="set-measure" min="24" max="52" step="1">
+      </div>
+      <div class="setting">
+        <label>Fonte</label>
+        <div class="row">
+          <button class="chip" data-font="serif">Serifada</button>
+          <button class="chip" data-font="sans">Sem serifa</button>
+          <button class="chip" data-font="mono">Mono</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Alinhamento</label>
+        <div class="row">
+          <button class="chip" data-align="justify">Justificado</button>
+          <button class="chip" data-align="left">À esquerda</button>
+        </div>
+      </div>
+      <div class="setting">
+        <label>Modo de leitura</label>
+        <div class="row">
+          <button class="chip" data-layout="paginado">Paginado</button>
+          <button class="chip" data-layout="duplo">Duas colunas</button>
+          <button class="chip" data-layout="rolagem">Rolagem</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <div class="left"><span id="status-chapter">—</span></div>
+    <div class="scrubber" id="scrubber" title="Arraste para navegar">
+      <div class="read" id="scrubber-read"></div>
+      <div class="knob" id="scrubber-knob"></div>
+    </div>
+    <div class="right">
+      <span id="status-left">—</span>
+      <span id="status-page">—</span>
+      <span id="status-pct">0%</span>
+    </div>
+  </footer>
+</div>
+
+<div class="selection-pop" id="selpop">
+  <button class="dot" data-color="amarelo" title="Destacar em amarelo"></button>
+  <button class="dot" data-color="verde" title="Destacar em verde"></button>
+  <button class="dot" data-color="azul" title="Destacar em azul"></button>
+  <button class="dot" data-color="rosa" title="Destacar em rosa"></button>
+  <span class="sep"></span>
+  <button class="txt" id="sel-note">Nota</button>
+  <button class="txt" id="sel-ask">Perguntar</button>
+  <button class="txt" id="sel-copy">Copiar</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+  <script>document.addEventListener('DOMContentLoaded', function () { Reader.init(); Chat.init(); });</script>
+{% endblock %}
