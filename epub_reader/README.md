@@ -45,6 +45,20 @@ nada além da fronteira aparece no que se manda ao modelo.
 
 ---
 
+## Duas formas de usar
+
+| | `app.py` (servidor) | `leitor-celular.html` (página solta) |
+|---|---|---|
+| Onde roda | Flask + SQLite na sua máquina | Inteiramente no navegador, inclusive no Android |
+| Conversa | Integrada, em streaming, com resumos por capítulo | Monta o texto da pergunta para você colar no app do Claude |
+| Instalação | `pip install -r requirements.txt` | Nenhuma — é um arquivo HTML |
+| Anti-spoiler | Recorte no servidor, limitado pelo progresso registrado | Mesmo recorte, feito no aparelho |
+
+O arquivo `leitor-celular.html` é autossuficiente: abre EPUB (descompacta com
+`DecompressionStream`), pagina, guarda livro e anotações no navegador e monta o
+mesmo contexto anti-spoiler. Ele não fala com nenhum servidor — daí o
+copiar-e-colar em vez da conversa integrada.
+
 ## Como rodar
 
 ```bash
