@@ -1328,6 +1328,13 @@
     marcarEscolhas('[data-alinhamento]', 'alinhamento', a.alinhamento);
     marcarEscolhas('[data-modo]', 'modo', a.modo);
     salvarAjustes();
+
+    // no app, a barra de status acompanha o papel escolhido
+    if (nativo && window.Ponte.corDaBarra) {
+      try {
+        window.Ponte.corDaBarra(getComputedStyle(raiz).getPropertyValue('--papel').trim());
+      } catch (e) { /* versão do app sem esse recurso */ }
+    }
   }
 
   function marcarEscolhas(seletor, campo, valor) {
