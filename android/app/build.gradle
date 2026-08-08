@@ -1,0 +1,50 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'br.leitor.semspoiler'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "br.leitor.semspoiler"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    // O leitor é o mesmo arquivo publicado na web: copiado para os assets no
+    // build, para não existirem duas cópias divergindo.
+    sourceSets {
+        main {
+            assets.srcDirs += "${layout.buildDirectory.get().asFile}/leitor"
+        }
+    }
+}
+
+dependencies {
+    // WebViewAssetLoader: serve os assets por https://appassets.androidplatform.net,
+    // uma origem segura — em file:// o IndexedDB não funciona e a estante não
+    // sobreviveria ao fechamento do app.
+    implementation 'androidx.webkit:webkit:1.11.0'
+}
+
+tasks.register('copiarLeitor', Copy) {
+    from("${rootDir}/../epub_reader/leitor-celular.html")
+    into("${layout.buildDirectory.get().asFile}/leitor")
+    rename { 'leitor.html' }
+}
+
+tasks.named('preBuild') { dependsOn 'copiarLeitor' }

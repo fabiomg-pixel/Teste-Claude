@@ -540,6 +540,31 @@
 
   .copia-manual { width: 100%; height: 9rem; font-family: var(--mono); font-size: .72rem; padding: .6rem; border: 1px solid var(--acento); border-radius: 10px; background: var(--papel); }
 
+  .mono { font-family: var(--mono); font-size: .9em; }
+
+  .painel-chave { padding: .3rem .3rem 1rem; border-bottom: 1px solid var(--linha); margin-bottom: .6rem; }
+
+  /* conversa (só dentro do app, onde a chamada à API é possível) */
+  .conversa { display: flex; flex-direction: column; gap: .8rem; padding: .3rem .1rem .8rem; }
+
+  .fala { font-size: .9rem; line-height: 1.55; }
+  .fala.minha {
+    align-self: flex-end;
+    max-width: 88%;
+    background: color-mix(in srgb, var(--acento) 15%, transparent);
+    padding: .5rem .75rem;
+    border-radius: 14px 14px 3px 14px;
+  }
+  .fala.dele { max-width: 100%; }
+  .fala.dele p { margin: 0 0 .55em; }
+  .fala.dele ul, .fala.dele ol { margin: .2em 0 .6em; padding-left: 1.2em; }
+  .fala.dele li { margin-bottom: .2em; }
+  .fala .selo { display: block; font-size: .7rem; color: var(--meia-tinta); margin-bottom: .25rem; }
+  .fala.erro { color: var(--meia-tinta); font-style: italic; font-size: .84rem; }
+
+  .pensando::after { content: '▍'; color: var(--acento); animation: pisca-cursor 1s steps(2) infinite; }
+  @keyframes pisca-cursor { 50% { opacity: 0; } }
+
   /* ------------------------------------------------ barra de seleção */
 
   .selecao {
@@ -719,14 +744,40 @@
 <!-- -------------------------------------------------------- perguntar -->
 <div class="folha" id="folha-perguntar" aria-hidden="true">
   <div class="puxador"><i></i></div>
-  <header><h2>Perguntar sobre o livro</h2><button class="icone" data-fechar aria-label="Fechar">✕</button></header>
+  <header>
+    <h2>Perguntar sobre o livro</h2>
+    <button class="icone oculto" id="btn-chave" title="Chave e modelo">🔑</button>
+    <button class="icone" data-fechar aria-label="Fechar">✕</button>
+  </header>
 
   <div class="fronteira">
     <span aria-hidden="true">🔒</span>
     <span id="texto-fronteira"></span>
   </div>
 
-  <div class="corpo">
+  <div class="corpo" id="corpo-perguntar">
+    <div class="painel-chave oculto" id="painel-chave">
+      <p class="rotulo">Chave da API</p>
+      <p class="vazio" style="padding:.3rem 0 .6rem">
+        Para conversar dentro do app, cole uma chave da API da Anthropic
+        (<span class="mono">sk-ant-…</span>). Ela fica guardada só neste
+        aparelho, na área privada do app, e vai direto para a API — não passa
+        por nenhum servidor meu.
+      </p>
+      <input type="password" class="campo" id="campo-chave" placeholder="sk-ant-…" autocomplete="off" style="min-height:0">
+      <div class="fileira" style="margin:.6rem 0">
+        <button class="ficha" data-modelo="claude-opus-5">Opus 5</button>
+        <button class="ficha" data-modelo="claude-sonnet-5">Sonnet 5</button>
+        <button class="ficha" data-modelo="claude-haiku-4-5">Haiku 4.5</button>
+      </div>
+      <div class="pilha" style="padding:0">
+        <button class="acao" id="salvar-chave">Guardar chave</button>
+        <button class="acao secundaria oculto" id="apagar-chave">Apagar a chave deste aparelho</button>
+      </div>
+    </div>
+
+    <div class="conversa oculto" id="conversa"></div>
+
     <div class="modos" id="modos">
       <button class="ficha" data-modo-pergunta="recapitular">Recapitular</button>
       <button class="ficha" data-modo-pergunta="personagens">Quem é quem</button>
@@ -737,6 +788,7 @@
     <div class="pilha">
       <textarea class="campo" id="pergunta" placeholder="O que você quer perguntar sobre o que já leu?"></textarea>
       <div id="trecho-escolhido" class="vazio oculto" style="padding:.5rem .6rem;border-radius:9px;background:color-mix(in srgb, var(--acento) 8%, transparent)"></div>
+      <button class="acao oculto" id="enviar">Perguntar</button>
       <button class="acao" id="copiar">Copiar para colar no Claude</button>
       <button class="acao secundaria oculto" id="baixar">Salvar como arquivo</button>
     </div>
@@ -746,11 +798,16 @@
       <pre id="previa"></pre>
     </details>
 
-    <p class="vazio">
+    <p class="vazio" id="explicacao-web">
       A página não fala com nenhum servidor — o CSP do artifact bloqueia isso, e
       de todo modo a chave da API não deve viver dentro de uma página. O texto
       copiado já carrega as regras anti-spoiler no topo, então a conversa no app
       do Claude segue a mesma fronteira.
+    </p>
+    <p class="vazio oculto" id="explicacao-app">
+      A pergunta vai direto do aparelho para a API da Anthropic, com a sua
+      chave. O livro não sai daqui: só o recorte que você vê em “o que vai
+      junto”, sempre parando na sua fronteira de leitura.
     </p>
   </div>
 </div>
@@ -1752,15 +1809,18 @@
     return notas.slice(0, limite || 6).map((n) => n.bloco);
   }
 
-  function montarPacote() {
-    if (!app.livro) return '';
+  /* Devolve o pedido em duas partes: as regras (que viram o system prompt no
+     app) e a mensagem com o recorte do livro. A versão para copiar é apenas
+     a junção das duas. */
+  function montarPedido() {
+    if (!app.livro) return { sistema: REGRAS, mensagem: '', pergunta: '' };
     const pergunta = $('pergunta').value.trim();
     const tarefa = TAREFAS[app.modoPergunta] || '';
     const capituloAtual = capituloDoBloco(app.fronteira);
     const pct = ((app.fronteira + 1) / Math.max(app.livro.totalBlocos, 1) * 100).toFixed(0);
 
     const lidos = app.livro.capitulos.filter((c) => c.primeiro <= app.fronteira && c.ultimo >= c.primeiro);
-    const partes = [REGRAS, '', '## O livro',
+    const partes = ['## O livro',
       'Título: ' + (app.livro.meta.titulo || '(sem título)'),
       'Autoria: ' + (app.livro.meta.autor || 'desconhecida'),
       '', '## Onde estou',
@@ -1802,7 +1862,12 @@
     if (pergunta) partes.push(pergunta);
     if (!tarefa && !pergunta) partes.push('Comente o que eu li até aqui.');
 
-    return partes.join('\n');
+    return { sistema: REGRAS, mensagem: partes.join('\n'), pergunta };
+  }
+
+  function montarPacote() {
+    const pedido = montarPedido();
+    return pedido.sistema + '\n\n' + pedido.mensagem;
   }
 
   function atualizarPrevia() {
@@ -1859,6 +1924,179 @@
       $('baixar').classList.add('oculto');                     // sem serventia nesta janela
       aviso('Salvar arquivo não funciona aqui — use o botão de copiar.');
     }
+  }
+
+  /* ================================================================== *
+   * 5b. Modo aplicativo — conversa de verdade
+   *
+   * Dentro do APK existe uma ponte nativa (window.Ponte): a chamada à API
+   * acontece em Java, com a chave guardada na área privada do app, e as
+   * respostas voltam em pedaços por window.__ponte. Na web esta seção fica
+   * inteiramente desligada e vale o copiar-e-colar.
+   * ================================================================== */
+
+  const nativo = !!(window.Ponte && window.Ponte.perguntar);
+  const conversa = [];
+  let emCurso = null;
+
+  function marcaLeve(fonte) {
+    const linhas = escapar(fonte).split('\n');
+    const saida = [];
+    let lista = null;
+    const embutido = (t) => t
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    const fechar = () => { if (lista) { saida.push('</' + lista + '>'); lista = null; } };
+    linhas.forEach((bruta) => {
+      const linha = bruta.trimEnd();
+      if (!linha.trim()) { fechar(); return; }
+      const titulo = linha.match(/^#{1,4}\s+(.*)$/);
+      const item = linha.match(/^\s*[-*•]\s+(.*)$/);
+      const numero = linha.match(/^\s*\d+[.)]\s+(.*)$/);
+      if (titulo) { fechar(); saida.push('<p><strong>' + embutido(titulo[1]) + '</strong></p>'); }
+      else if (item) { if (lista !== 'ul') { fechar(); saida.push('<ul>'); lista = 'ul'; } saida.push('<li>' + embutido(item[1]) + '</li>'); }
+      else if (numero) { if (lista !== 'ol') { fechar(); saida.push('<ol>'); lista = 'ol'; } saida.push('<li>' + embutido(numero[1]) + '</li>'); }
+      else { fechar(); saida.push('<p>' + embutido(linha) + '</p>'); }
+    });
+    fechar();
+    return saida.join('');
+  }
+
+  function desenharFala(quem, conteudo, selo) {
+    const el = document.createElement('div');
+    el.className = 'fala ' + quem;
+    el.innerHTML = (selo ? '<span class="selo">' + escapar(selo) + '</span>' : '') +
+      (quem === 'dele' ? marcaLeve(conteudo) : escapar(conteudo).replace(/\n/g, '<br>'));
+    $('conversa').appendChild(el);
+    rolarConversa();
+    return el;
+  }
+
+  function rolarConversa() {
+    const corpo = $('corpo-perguntar');
+    corpo.scrollTop = corpo.scrollHeight;
+  }
+
+  function atualizarChave() {
+    if (!nativo) return;
+    const tem = window.Ponte.temChave();
+    $('painel-chave').classList.toggle('oculto', tem);
+    $('apagar-chave').classList.toggle('oculto', !tem);
+    $('enviar').disabled = !tem;
+    $('enviar').style.opacity = tem ? '1' : '.5';
+    marcarEscolhas('[data-modelo]', 'modelo', window.Ponte.modelo());
+  }
+
+  function enviarNativo() {
+    if (!app.livro) return;
+    if (!window.Ponte.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
+    if (emCurso) { aviso('Espere a resposta terminar.'); return; }
+
+    const pedido = montarPedido();
+    const ficha = document.querySelector('[data-modo-pergunta="' + app.modoPergunta + '"]');
+    const rotulo = pedido.pergunta ||
+      (app.selecionado ? 'Explicar o trecho selecionado' : (ficha ? ficha.textContent : 'Comente o que li'));
+
+    desenharFala('minha', rotulo);
+
+    /* Só a última mensagem carrega o recorte do livro: as anteriores ficam
+       com a pergunta em si, para não reenviar o contexto inteiro a cada vez
+       (e porque o recorte atual já cobre tudo o que foi lido). */
+    const mensagens = conversa.map((f) => ({ role: f.papel, content: f.texto }))
+      .concat([{ role: 'user', content: pedido.mensagem }]);
+    conversa.push({ papel: 'user', texto: rotulo });
+
+    const balao = desenharFala('dele', '');
+    balao.classList.add('pensando');
+    emCurso = { id: 'p' + Date.now().toString(36), balao, texto: '' };
+
+    $('pergunta').value = '';
+    if (app.selecionado) { app.selecionado = ''; $('trecho-escolhido').classList.add('oculto'); }
+    atualizarPrevia();
+
+    try {
+      window.Ponte.perguntar(emCurso.id, pedido.sistema, JSON.stringify(mensagens));
+    } catch (e) {
+      emCurso.balao.classList.remove('pensando');
+      emCurso.balao.className = 'fala erro';
+      emCurso.balao.textContent = 'Não consegui falar com a API: ' + e;
+      emCurso = null;
+    }
+  }
+
+  window.__ponte = {
+    delta(id, texto) {
+      if (!emCurso || emCurso.id !== id) return;
+      emCurso.texto += texto;
+      emCurso.balao.classList.remove('pensando');
+      emCurso.balao.innerHTML = marcaLeve(emCurso.texto);
+      rolarConversa();
+    },
+    fim(id) {
+      if (!emCurso || emCurso.id !== id) return;
+      emCurso.balao.classList.remove('pensando');
+      if (!emCurso.texto.trim()) { emCurso.balao.className = 'fala erro'; emCurso.balao.textContent = 'A resposta veio vazia.'; }
+      else conversa.push({ papel: 'assistant', texto: emCurso.texto });
+      emCurso = null;
+      rolarConversa();
+    },
+    erro(id, mensagem) {
+      if (emCurso && emCurso.id === id) {
+        emCurso.balao.classList.remove('pensando');
+        if (emCurso.texto.trim()) conversa.push({ papel: 'assistant', texto: emCurso.texto });
+        emCurso = null;
+      }
+      desenharFala('erro', '⚠ ' + mensagem);
+    },
+  };
+
+  /* o botão físico de voltar do Android passa por aqui */
+  window.__voltarNativo = function () {
+    if (document.querySelector('.folha.aberta')) { fecharFolhas(); return true; }
+    if (document.getElementById('copia-manual')) { document.getElementById('copia-manual').remove(); return true; }
+    if (app.livro) { sairDoLivro(); return true; }
+    return false;
+  };
+
+  function ligarModoNativo() {
+    if (!nativo) return;
+    $('btn-chave').classList.remove('oculto');
+    $('enviar').classList.remove('oculto');
+    $('copiar').classList.add('secundaria');
+    $('copiar').textContent = 'Copiar o texto';
+    $('explicacao-web').classList.add('oculto');
+    $('explicacao-app').classList.remove('oculto');
+    $('conversa').classList.remove('oculto');
+
+    $('btn-chave').addEventListener('click', () => {
+      const painel = $('painel-chave');
+      painel.classList.toggle('oculto');
+      if (!painel.classList.contains('oculto')) {
+        $('apagar-chave').classList.toggle('oculto', !window.Ponte.temChave());
+        marcarEscolhas('[data-modelo]', 'modelo', window.Ponte.modelo());
+      }
+    });
+    $('salvar-chave').addEventListener('click', () => {
+      const chave = $('campo-chave').value.trim();
+      if (!chave) { aviso('Cole a chave primeiro.'); return; }
+      window.Ponte.salvarChave(chave);
+      $('campo-chave').value = '';
+      atualizarChave();
+      aviso('Chave guardada neste aparelho');
+    });
+    $('apagar-chave').addEventListener('click', () => {
+      window.Ponte.apagarChave();
+      atualizarChave();
+      aviso('Chave apagada');
+    });
+    document.querySelectorAll('[data-modelo]').forEach((b) => b.addEventListener('click', () => {
+      window.Ponte.salvarModelo(b.dataset.modelo);
+      marcarEscolhas('[data-modelo]', 'modelo', b.dataset.modelo);
+      aviso('Modelo: ' + b.textContent);
+    }));
+    $('enviar').addEventListener('click', enviarNativo);
+    atualizarChave();
   }
 
   /* ================================================================== *
@@ -2148,6 +2386,7 @@
   /* ------------------------------------------------------------- início */
 
   aplicarAjustes();
+  ligarModoNativo();
   if (window.claude && window.claude.downloads) $('baixar').classList.remove('oculto');
   if (!guarda.persistente || !estado.persistente) {
     $('aviso-armazenamento').textContent = ' Neste navegador o armazenamento está bloqueado, então o livro vale só enquanto a página estiver aberta.';

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Livro aberto com fita de marcação; desenhado dentro da zona segura do
+     ícone adaptativo (o miolo de 72dp dos 108dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#F3F2EC" android:pathData="M30,40 L52,44 L52,76 L30,72 Z" />
+    <path android:fillColor="#F3F2EC" android:pathData="M78,40 L56,44 L56,76 L78,72 Z" />
+    <path android:fillColor="#DDD9CC" android:pathData="M52,44 L56,44 L56,76 L52,76 Z" />
+    <path android:fillColor="#D8A35F" android:pathData="M62,44 L69,43 L69,63 L65.5,59 L62,64 Z" />
+</vector>

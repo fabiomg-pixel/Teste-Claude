@@ -1,7 +1,54 @@
-name: teste de permissao
-on: workflow_dispatch
+name: APK do leitor
+
+# Este ambiente de desenvolvimento não alcança o dl.google.com, então o APK é
+# compilado aqui: o runner do GitHub já vem com o SDK do Android.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'android/**'
+      - 'epub_reader/leitor-celular.html'
+      - '.github/workflows/apk.yml'
+
+permissions:
+  contents: read
+
 jobs:
-  ping:
+  montar:
+    name: Compilar o APK de depuração
     runs-on: ubuntu-latest
+
     steps:
-      - run: echo ok
+      - uses: actions/checkout@v4
+
+      - name: Preparar o Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Guardar o cache do Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Conferir o que saiu
+        working-directory: android
+        run: |
+          set -e
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          ls -lh "$APK"
+          # o leitor precisa ter entrado nos assets do pacote
+          unzip -l "$APK" | grep -q 'assets/leitor.html'
+          echo "APK pronto."
+
+      - name: Publicar o APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: leitor-sem-spoiler-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
