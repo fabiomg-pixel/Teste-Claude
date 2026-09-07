@@ -11,7 +11,7 @@ on:
       - '.github/workflows/apk.yml'
 
 permissions:
-  contents: read
+  contents: write   # para publicar o APK como release
 
 jobs:
   montar:
@@ -45,10 +45,29 @@ jobs:
           unzip -l "$APK" | grep -q 'assets/leitor.html'
           echo "APK pronto."
 
-      - name: Publicar o APK
+      - name: Publicar o APK como artefato
         uses: actions/upload-artifact@v4
         with:
           name: leitor-sem-spoiler-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Artefato do Actions só se baixa logado e vem dentro de um zip — ruim
+      # no celular. A release dá um link direto, que o navegador do Android
+      # abre e instala.
+      - name: Publicar o APK como release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          cp android/app/build/outputs/apk/debug/app-debug.apk leitor-sem-spoiler.apk
+          gh release delete apk --yes --cleanup-tag 2>/dev/null || true
+          gh release create apk leitor-sem-spoiler.apk \
+            --target "$GITHUB_SHA" \
+            --title "Leitor sem spoiler — APK" \
+            --notes "APK de depuração, gerado do commit \`${GITHUB_SHA:0:7}\`.
+
+          Baixe o \`leitor-sem-spoiler.apk\` abaixo e toque no arquivo no Android.
+          O sistema vai pedir para permitir a instalação de fontes desconhecidas —
+          é o aviso normal de instalar fora da Play Store."
