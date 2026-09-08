@@ -15,13 +15,18 @@ fronteira anti-spoiler usada na conversa com a LLM.
 
 from __future__ import annotations
 
+import codecs
 import posixpath
 import re
+import warnings
 import zipfile
 from urllib.parse import unquote, urldefrag
 from xml.etree import ElementTree as ET
 
 from bs4 import BeautifulSoup, Tag
+from bs4 import XMLParsedAsHTMLWarning
+
+warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 CONTAINER_PATH = "META-INF/container.xml"
 
@@ -61,6 +66,24 @@ BLOCK_TAGS = {
 
 TEXT_MEDIA = ("application/xhtml+xml", "text/html")
 
+# O leitor do navegador numera os blocos a partir da árvore que o próprio
+# navegador monta. Para o servidor chegar exatamente à mesma numeração — o que
+# a sincronização entre aparelhos exige — é preciso o mesmo algoritmo de
+# análise: o html5lib implementa o do HTML5. Sem ele, um <p> sem fechar (comum
+# em EPUBs) desloca todos os blocos seguintes.
+try:
+    import html5lib  # noqa: F401
+    _ANALISADOR = "html5lib"
+except ImportError:  # pragma: no cover
+    import warnings
+    warnings.warn(
+        "html5lib não instalado: a numeração de blocos pode divergir da do "
+        "leitor no navegador, o que quebra a sincronização entre aparelhos. "
+        "Instale com: pip install html5lib",
+        RuntimeWarning,
+    )
+    _ANALISADOR = "html.parser"
+
 
 class EpubError(Exception):
     """Erro de leitura/estrutura do arquivo EPUB."""
@@ -95,6 +118,27 @@ def _resolve(base_dir: str, href: str) -> str:
 
 def _is_external(href: str) -> bool:
     return bool(re.match(r"^(https?:|mailto:|tel:|data:|ftp:)", href or "", re.I))
+
+
+def _decodificar(dados: bytes) -> str:
+    """Bytes de um documento do EPUB para texto.
+
+    O html5lib não lê a declaração XML (<?xml encoding=...?>) ao adivinhar a
+    codificação, e erra para latin-1 em arquivos UTF-8 sem <meta charset>. Como
+    praticamente todo EPUB é UTF-8, a decisão é tomada aqui.
+    """
+    if dados.startswith(codecs.BOM_UTF8):
+        return dados[len(codecs.BOM_UTF8):].decode("utf-8", "replace")
+    if dados.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return dados.decode("utf-16", "replace")
+    cabeca = dados[:1024].lower()
+    declarada = re.search(rb'(?:encoding|charset)\s*=\s*["\']?([\w-]+)', cabeca)
+    for tentativa in ([declarada.group(1).decode("ascii", "ignore")] if declarada else []) + ["utf-8"]:
+        try:
+            return dados.decode(tentativa)
+        except (LookupError, UnicodeDecodeError):
+            continue
+    return dados.decode("latin-1", "replace")
 
 
 class _Zip:
@@ -210,7 +254,7 @@ def _find_cover(package: ET.Element, manifest: dict) -> str | None:
 
 
 def _toc_from_nav(z: _Zip, nav_path: str, spine_map: dict) -> list[dict]:
-    soup = BeautifulSoup(z.read(nav_path), "html.parser")
+    soup = BeautifulSoup(_decodificar(z.read(nav_path)), _ANALISADOR)
     nav = None
     for candidate in soup.find_all("nav"):
         if (candidate.get("epub:type") or candidate.get("type") or "") == "toc":
@@ -341,7 +385,7 @@ def _index_blocks(node: Tag, chapter_index: int, start: int) -> list[dict]:
     for tag in node.find_all(BLOCK_TAGS):
         if tag.find(BLOCK_TAGS):  # não é folha: os filhos serão indexados
             continue
-        text = _norm_ws(tag.get_text(" "))
+        text = _norm_ws(tag.get_text(""))
         if not text:
             continue
         tag["data-b"] = str(counter)
@@ -359,7 +403,7 @@ def _chapter_title(node: Tag, fallback: str) -> str:
     for level in ("h1", "h2", "h3", "h4"):
         heading = node.find(level)
         if heading:
-            title = _norm_ws(heading.get_text(" "))
+            title = _norm_ws(heading.get_text(""))
             if title:
                 return title[:120]
     return fallback
@@ -410,7 +454,7 @@ def parse_epub(path: str, asset_url: str = "asset?p=") -> dict:
                 raw = z.read(item["path"])
             except EpubError:
                 continue
-            soup = BeautifulSoup(raw, "html.parser")
+            soup = BeautifulSoup(_decodificar(raw), _ANALISADOR)
             body = soup.body or soup
             _sanitize(body)
             _rewrite_links(body, posixpath.dirname(item["path"]), spine_map, asset_url)

@@ -200,6 +200,22 @@
   .livro .pct { font-size: .75rem; color: var(--meia-tinta); font-variant-numeric: tabular-nums; }
   .livro .some { color: var(--meia-tinta); font-size: 1.1rem; padding: .3rem .4rem; }
 
+  .sincronia { border: 1px solid var(--linha); border-radius: 12px; overflow: hidden; }
+
+  .linha-sync {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    width: 100%;
+    padding: .85rem .9rem;
+    text-align: left;
+  }
+  .linha-sync .rotulo { flex: 1; }
+  .linha-sync:active { background: var(--relevo); }
+  .estado-sync { font-size: .74rem; color: var(--meia-tinta); text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+  .painel-sync { padding: 0 .9rem 1rem; border-top: 1px solid var(--linha); }
+
   .nota-pe {
     margin: 0;
     padding: 1.5rem clamp(1.25rem, 6vw, 2.5rem) 0;
@@ -644,10 +660,38 @@
     </div>
   </div>
 
+  <div class="conteudo" style="padding-top:0">
+    <div class="sincronia">
+      <button class="linha-sync" id="abrir-sync" aria-expanded="false">
+        <span class="rotulo">Sincronizar entre aparelhos</span>
+        <span class="estado-sync oculto" id="estado-sync"></span>
+        <span aria-hidden="true">⇅</span>
+      </button>
+
+      <div class="painel-sync oculto" id="painel-sync">
+        <p class="vazio" style="padding:.2rem 0 .7rem">
+          Aponte para o servidor do leitor rodando no seu computador. Posição,
+          fronteira e destaques passam a viajar entre celular, Mac e iPhone —
+          e os livros também. O endereço e o token aparecem no terminal quando
+          você roda <span class="mono">python app.py</span>.
+        </p>
+        <input class="campo" id="campo-servidor" style="min-height:0;margin-bottom:.5rem"
+               placeholder="http://seu-mac:5001" inputmode="url" autocomplete="off">
+        <input class="campo" id="campo-token" type="password" style="min-height:0"
+               placeholder="token de sincronização" autocomplete="off">
+        <div class="pilha" style="padding-top:.6rem">
+          <button class="acao" id="salvar-sync">Guardar e sincronizar</button>
+          <button class="acao secundaria oculto" id="desligar-sync">Desligar a sincronização</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <p class="nota-pe">
     <strong>Onde ficam os arquivos.</strong> No armazenamento do próprio
-    navegador. Nada é enviado a lugar nenhum: quem leva o texto para a conversa
-    é você, colando, e só o pedaço que a página monta.
+    navegador — e, se você ligar a sincronização, também no seu servidor. Fora
+    isso nada sai daqui: quem leva o texto para a conversa é você, colando, e
+    só o pedaço que a página monta.
     <span id="aviso-armazenamento"></span>
   </p>
 </section>
@@ -1299,8 +1343,11 @@
 
   function salvarEstado() {
     if (!app.livro) return;
+    const guardado = estado.ler(chaveDoLivro(app.livro.id), {});
     estado.gravar(chaveDoLivro(app.livro.id), {
       bloco: app.bloco, fronteira: app.fronteira, marcas: app.marcas,
+      posicaoEm: app.posicaoEm || guardado.posicaoEm || 0,
+      sincronizadoEm: guardado.sincronizadoEm || 0,
     });
   }
 
@@ -1446,6 +1493,7 @@
       bloco = blocoDaPagina(app.pagina);
     }
     if (bloco == null || Number.isNaN(bloco)) return;
+    if (bloco !== app.bloco) app.posicaoEm = Date.now() / 1000;
     app.bloco = bloco;
     if (bloco > app.fronteira) app.fronteira = bloco;
     salvarEstado();
@@ -1623,9 +1671,11 @@
     return true;
   }
 
+  const marcasVivas = () => app.marcas.filter((m) => !m.apagadoEm);
+
   function aplicarMarcas() {
     if (!app.capitulo) return;
-    app.marcas.filter((m) => m.capitulo === app.capitulo.indice).forEach((m) => {
+    marcasVivas().filter((m) => m.capitulo === app.capitulo.indice).forEach((m) => {
       const el = fluxo().querySelector('[data-b="' + m.bloco + '"]');
       if (el) marcarTexto(el, m.texto, m);
     });
@@ -1643,7 +1693,7 @@
       id: 'm' + Date.now().toString(36),
       bloco: parseInt(blocoEl.getAttribute('data-b'), 10),
       capitulo: app.capitulo.indice,
-      texto, cor: cor || 'manteiga',
+      texto, cor: cor || 'manteiga', em: Date.now() / 1000,
     };
     app.marcas.push(marca);
     marcarTexto(blocoEl, texto, marca);
@@ -1654,7 +1704,10 @@
   }
 
   function removerMarca(id) {
-    app.marcas = app.marcas.filter((m) => m.id !== id);
+    // Lápide em vez de sumiço: sem ela, o aparelho que ainda tem o destaque o
+    // ressuscitaria na próxima sincronização.
+    const agora = Date.now() / 1000;
+    app.marcas = app.marcas.map((m) => (m.id === id ? { ...m, apagadoEm: agora, em: agora } : m));
     fluxo().querySelectorAll('mark[data-marca="' + id + '"]').forEach((marca) => {
       const pai = marca.parentNode;
       while (marca.firstChild) pai.insertBefore(marca.firstChild, marca);
@@ -1715,11 +1768,11 @@
   function desenharAnotacoes() {
     const alvo = $('corpo-anotacoes');
     alvo.innerHTML = '';
-    if (!app.marcas.length) {
+    if (!marcasVivas().length) {
       alvo.innerHTML = '<p class="vazio">Nenhuma anotação. Selecione um trecho no texto para destacar — ou para levá-lo à pergunta.</p>';
       return;
     }
-    app.marcas.slice().sort((a, b) => a.bloco - b.bloco).forEach((m) => {
+    marcasVivas().sort((a, b) => a.bloco - b.bloco).forEach((m) => {
       const capitulo = capituloDoBloco(m.bloco);
       const el = document.createElement('div');
       el.className = 'anotacao';
@@ -2107,6 +2160,251 @@
   }
 
   /* ================================================================== *
+   * 5c. Sincronização entre aparelhos
+   *
+   * O servidor guarda o estado e, se você quiser, o próprio EPUB. Cada
+   * aparelho manda o que tem e recebe a mescla de volta — nunca uma
+   * substituição. O livro é identificado pela impressão digital do arquivo,
+   * então o mesmo EPUB em dois aparelhos casa sozinho.
+   * ================================================================== */
+
+  const sincronia = {
+    get config() { return estado.ler('leitor.sync', { servidor: '', token: '' }); },
+    set config(valor) { estado.gravar('leitor.sync', valor); },
+    get ligada() { const c = this.config; return !!(c.servidor && c.token); },
+    ocupada: false,
+  };
+
+  /* SHA-256 em JS puro para quando não há crypto.subtle — que é o caso num
+     servidor caseiro em http:// (só https e localhost contam como origem
+     segura). A impressão digital precisa bater com a do Python. */
+  const sha256 = (function () {
+    const K = new Uint32Array([
+      0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+      0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+      0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+      0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+      0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+      0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+      0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+      0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2]);
+    const gira = (x, n) => (x >>> n) | (x << (32 - n));
+
+    return function (bytes) {
+      const tamanho = bytes.length;
+      const blocos = new Uint8Array((((tamanho + 8) >> 6) + 1) << 6);
+      blocos.set(bytes);
+      blocos[tamanho] = 0x80;
+      const visao = new DataView(blocos.buffer);
+      visao.setUint32(blocos.length - 4, tamanho << 3, false);
+      visao.setUint32(blocos.length - 8, Math.floor(tamanho / 536870912), false);
+
+      const h = new Uint32Array([0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                                 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19]);
+      const w = new Uint32Array(64);
+      for (let i = 0; i < blocos.length; i += 64) {
+        for (let t = 0; t < 16; t++) w[t] = visao.getUint32(i + t * 4, false);
+        for (let t = 16; t < 64; t++) {
+          const s0 = gira(w[t - 15], 7) ^ gira(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+          const s1 = gira(w[t - 2], 17) ^ gira(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+          w[t] = (w[t - 16] + s0 + w[t - 7] + s1) >>> 0;
+        }
+        let [a, b, c, d, e, f, g, hh] = h;
+        for (let t = 0; t < 64; t++) {
+          const S1 = gira(e, 6) ^ gira(e, 11) ^ gira(e, 25);
+          const ch = (e & f) ^ (~e & g);
+          const t1 = (hh + S1 + ch + K[t] + w[t]) >>> 0;
+          const S0 = gira(a, 2) ^ gira(a, 13) ^ gira(a, 22);
+          const maj = (a & b) ^ (a & c) ^ (b & c);
+          const t2 = (S0 + maj) >>> 0;
+          hh = g; g = f; f = e; e = (d + t1) >>> 0;
+          d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+        }
+        h[0] = (h[0] + a) >>> 0; h[1] = (h[1] + b) >>> 0; h[2] = (h[2] + c) >>> 0;
+        h[3] = (h[3] + d) >>> 0; h[4] = (h[4] + e) >>> 0; h[5] = (h[5] + f) >>> 0;
+        h[6] = (h[6] + g) >>> 0; h[7] = (h[7] + hh) >>> 0;
+      }
+      return [...h].map((x) => x.toString(16).padStart(8, '0')).join('');
+    };
+  })();
+
+  async function impressaoDigital(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const cabeca = new TextEncoder().encode(String(bytes.length));
+    const inicio = bytes.subarray(0, 262144);
+    const fim = bytes.length > 262144 ? bytes.subarray(bytes.length - 262144) : new Uint8Array(0);
+    const junto = new Uint8Array(cabeca.length + inicio.length + fim.length);
+    junto.set(cabeca, 0);
+    junto.set(inicio, cabeca.length);
+    junto.set(fim, cabeca.length + inicio.length);
+    if (window.crypto && crypto.subtle && crypto.subtle.digest) {
+      try {
+        const resumo = await crypto.subtle.digest('SHA-256', junto);
+        return [...new Uint8Array(resumo)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 32);
+      } catch (e) { /* origem insegura: cai no cálculo em JS */ }
+    }
+    return sha256(junto).slice(0, 32);
+  }
+
+  async function pedirAoServidor(caminho, opcoes) {
+    const c = sincronia.config;
+    const base = c.servidor.replace(/\/+$/, '');
+    const resposta = await fetch(base + caminho, Object.assign({}, opcoes, {
+      headers: Object.assign({ Authorization: 'Bearer ' + c.token }, (opcoes || {}).headers || {}),
+    }));
+    if (!resposta.ok) {
+      let mensagem = 'Erro ' + resposta.status;
+      if (resposta.status === 401) mensagem = 'O servidor não aceitou o token.';
+      else { try { mensagem = (await resposta.json()).error || mensagem; } catch (e) { /* sem JSON */ } }
+      throw new Error(mensagem);
+    }
+    return resposta;
+  }
+
+  function estadoParaEnviar(id) {
+    const guardado = estado.ler(chaveDoLivro(id), {});
+    const emUso = app.livro && app.livro.id === id;
+    return {
+      posicao: { bloco: emUso ? app.bloco : (guardado.bloco || 0),
+                 em: emUso ? Date.now() / 1000 : (guardado.posicaoEm || 0) },
+      fronteira: emUso ? app.fronteira : (guardado.fronteira || 0),
+      marcas: emUso ? app.marcas : (guardado.marcas || []),
+    };
+  }
+
+  function aplicarEstado(id, vindo) {
+    const guardado = estado.ler(chaveDoLivro(id), { bloco: 0, fronteira: 0, marcas: [] });
+    const novo = {
+      bloco: guardado.bloco || 0,
+      fronteira: Math.max(guardado.fronteira || 0, vindo.fronteira || 0),
+      marcas: vindo.marcas || [],
+      posicaoEm: guardado.posicaoEm || 0,
+      sincronizadoEm: Date.now() / 1000,
+    };
+
+    const emUso = app.livro && app.livro.id === id;
+    const remota = vindo.posicao || { bloco: 0, em: 0 };
+    const localEm = emUso ? (app.posicaoEm || 0) : (guardado.posicaoEm || 0);
+    const localBloco = emUso ? app.bloco : (guardado.bloco || 0);
+    const adiantada = remota.em > localEm + 1 && Math.abs(remota.bloco - localBloco) > 2;
+
+    if (emUso) {
+      app.fronteira = novo.fronteira;
+      app.marcas = novo.marcas;
+      novo.bloco = app.bloco;
+      novo.posicaoEm = app.posicaoEm || localEm;
+      aplicarMarcas();
+      desenharAnotacoes();
+      atualizarRodape();
+      // Não arrancar a página de quem está lendo: oferecer.
+      if (adiantada) oferecerRetomada(remota);
+    } else if (adiantada) {
+      novo.bloco = remota.bloco;
+      novo.posicaoEm = remota.em;
+    }
+
+    estado.gravar(chaveDoLivro(id), novo);
+    return novo;
+  }
+
+  function oferecerRetomada(remota) {
+    const capitulo = capituloDoBloco(remota.bloco);
+    const caixa = $('aviso');
+    caixa.innerHTML = 'Em outro aparelho você parou em «' +
+      escapar((capitulo ? capitulo.titulo : '')) + '». <b style="text-decoration:underline">Ir para lá</b>';
+    caixa.classList.add('visivel');
+    clearTimeout(caixa._t);
+    const ir = () => { irParaBloco(remota.bloco, true); fechar(); };
+    const fechar = () => {
+      caixa.classList.remove('visivel');
+      caixa.removeEventListener('click', ir);
+      caixa.style.pointerEvents = '';
+    };
+    caixa.style.pointerEvents = 'auto';
+    caixa.addEventListener('click', ir);
+    caixa._t = setTimeout(fechar, 12000);
+  }
+
+  async function sincronizarLivro(registro) {
+    if (!sincronia.ligada || !registro.impressao) return null;
+    const resposta = await pedirAoServidor('/api/sync/estado/' + registro.impressao, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        titulo: registro.titulo || '', autor: registro.autor || '',
+        estado: estadoParaEnviar(registro.id),
+      }),
+    });
+    const corpo = await resposta.json();
+    return aplicarEstado(registro.id, corpo.estado || {});
+  }
+
+  async function sincronizarTudo(silencioso) {
+    if (!sincronia.ligada || sincronia.ocupada) return;
+    sincronia.ocupada = true;
+    marcarSincronia('sincronizando…');
+    try {
+      const remoto = await (await pedirAoServidor('/api/sync/hello')).json();
+      let locais = await guarda.listar();
+
+      // livros antigos, guardados antes da sincronização existir
+      for (const registro of locais) {
+        if (!registro.impressao) {
+          registro.impressao = await impressaoDigital(registro.bytes.slice(0));
+          await guarda.guardar(registro);
+        }
+      }
+
+      // traz o que só existe no servidor
+      const daqui = new Set(locais.map((l) => l.impressao));
+      for (const item of remoto.livros.filter((l) => l.tem_arquivo && !daqui.has(l.impressao))) {
+        marcarSincronia('baixando «' + (item.titulo || 'livro') + '»…');
+        const bytes = await (await pedirAoServidor('/api/sync/arquivo/' + item.impressao)).arrayBuffer();
+        await importar(new File([bytes], (item.titulo || 'livro') + '.epub'), { abrir: false });
+      }
+
+      // sobe o que o servidor não tem
+      for (const registro of locais) {
+        const noServidor = remoto.livros.find((l) => l.impressao === registro.impressao);
+        if (noServidor && noServidor.tem_arquivo) continue;
+        marcarSincronia('enviando «' + (registro.titulo || 'livro') + '»…');
+        const forma = new FormData();
+        forma.append('file', new Blob([registro.bytes], { type: 'application/epub+zip' }), 'livro.epub');
+        await pedirAoServidor('/api/sync/arquivo/' + registro.impressao +
+          '?titulo=' + encodeURIComponent(registro.titulo || ''), { method: 'POST', body: forma });
+      }
+
+      // e só então o estado — inclusive o dos livros recém-baixados
+      marcarSincronia('sincronizando…');
+      locais = await guarda.listar();
+      for (const registro of locais) await sincronizarLivro(registro);
+
+      estado.gravar('leitor.sync.ultima', Date.now() / 1000);
+      marcarSincronia('');
+      if (!silencioso) aviso('Tudo sincronizado');
+      desenharEstante();
+    } catch (erro) {
+      marcarSincronia('');
+      if (!silencioso) aviso(erro.message || 'Falha ao sincronizar');
+    } finally {
+      sincronia.ocupada = false;
+    }
+  }
+
+  function marcarSincronia(texto) {
+    const alvo = $('estado-sync');
+    if (!alvo) return;
+    if (texto) { alvo.textContent = texto; alvo.classList.remove('oculto'); }
+    else {
+      const ultima = estado.ler('leitor.sync.ultima', 0);
+      alvo.textContent = ultima
+        ? 'sincronizado ' + new Date(ultima * 1000).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+        : '';
+      alvo.classList.toggle('oculto', !ultima);
+    }
+  }
+
+  /* ================================================================== *
    * 6. Estante
    * ================================================================== */
 
@@ -2163,7 +2461,7 @@
     $('estante-vazia').classList.toggle('oculto', lista.length > 0);
   }
 
-  async function importar(arquivo) {
+  async function importar(arquivo, opcoes) {
     aviso('Abrindo «' + arquivo.name + '»…');
     const buffer = await arquivo.arrayBuffer();
     let livro;
@@ -2174,8 +2472,10 @@
       return;
     }
     const id = 'l' + (arquivo.size % 1000000) + '-' + fichas(livro.meta.titulo || arquivo.name).join('').slice(0, 16);
+    const impressao = await impressaoDigital(buffer.slice(0));
     await guarda.guardar({
       id,
+      impressao,
       titulo: livro.meta.titulo || arquivo.name.replace(/\.epub$/i, ''),
       autor: livro.meta.autor || '',
       bytes: buffer,
@@ -2184,7 +2484,10 @@
       aberto: Date.now(),
     });
     await desenharEstante();
+    if (opcoes && opcoes.abrir === false) return id;
     entrarNoLivro(id, livro);
+    if (sincronia.ligada) sincronizarTudo(true);
+    return id;
   }
 
   async function carregarLivro(id) {
@@ -2208,6 +2511,7 @@
     app.bloco = marcador.bloco || 0;
     app.fronteira = Math.max(marcador.fronteira || 0, app.bloco);
     app.marcas = marcador.marcas || [];
+    app.posicaoEm = marcador.posicaoEm || 0;
     $('obra-titulo').textContent = livro.meta.titulo || '';
     $('estante').classList.add('oculto');
     $('leitura').classList.remove('oculto');
@@ -2217,6 +2521,7 @@
 
   function sairDoLivro() {
     salvarEstado();
+    if (sincronia.ligada) sincronizarTudo(true);
     if (app.livro) app.livro.imagens.forEach((url) => URL.revokeObjectURL(url));
     app.livro = null;
     app.capitulo = null;
@@ -2230,6 +2535,56 @@
   /* ================================================================== *
    * 7. Ligações
    * ================================================================== */
+
+  /* Na página publicada como artifact o CSP bloqueia qualquer requisição a
+     outro servidor — melhor dizer isso do que deixar a pessoa preencher os
+     campos e receber uma falha de rede sem explicação. */
+  const noArtifact = !!window.claude;
+  if (noArtifact) {
+    $('painel-sync').innerHTML =
+      '<p class="vazio" style="padding:.2rem 0 .3rem">Esta cópia da página é a ' +
+      'publicada, e ela não tem permissão para falar com servidores — a política ' +
+      'de segurança do artifact bloqueia. Para sincronizar, use o aplicativo ' +
+      'Android ou abra o leitor pelo endereço do seu próprio servidor ' +
+      '(<span class="mono">/celular</span>).</p>';
+  }
+
+  $('abrir-sync').addEventListener('click', () => {
+    const painel = $('painel-sync');
+    const fechado = painel.classList.toggle('oculto');
+    $('abrir-sync').setAttribute('aria-expanded', String(!fechado));
+    if (!fechado && !noArtifact) {
+      const c = sincronia.config;
+      $('campo-servidor').value = c.servidor || '';
+      $('campo-token').value = c.token || '';
+      $('desligar-sync').classList.toggle('oculto', !sincronia.ligada);
+    }
+  });
+
+  $('salvar-sync').addEventListener('click', async () => {
+    const servidor = $('campo-servidor').value.trim().replace(/\/+$/, '');
+    const token = $('campo-token').value.trim();
+    if (!servidor || !token) { aviso('Preencha o endereço e o token.'); return; }
+    sincronia.config = { servidor, token };
+    try {
+      await pedirAoServidor('/api/sync/hello');
+    } catch (erro) {
+      sincronia.config = { servidor: '', token: '' };
+      aviso(erro.message || 'Não consegui falar com o servidor.');
+      return;
+    }
+    $('desligar-sync').classList.remove('oculto');
+    await sincronizarTudo();
+  });
+
+  $('desligar-sync').addEventListener('click', () => {
+    sincronia.config = { servidor: '', token: '' };
+    $('campo-servidor').value = '';
+    $('campo-token').value = '';
+    $('desligar-sync').classList.add('oculto');
+    marcarSincronia('');
+    aviso('Sincronização desligada');
+  });
 
   $('abrir').addEventListener('click', () => $('arquivo').click());
   $('arquivo').addEventListener('change', (ev) => {
@@ -2392,8 +2747,15 @@
 
   /* ------------------------------------------------------------- início */
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { salvarEstado(); return; }
+    if (sincronia.ligada) sincronizarTudo(true);
+  });
+
   aplicarAjustes();
   ligarModoNativo();
+  marcarSincronia('');
+  if (sincronia.ligada) setTimeout(() => sincronizarTudo(true), 600);
   if (window.claude && window.claude.downloads) $('baixar').classList.remove('oculto');
   if (!guarda.persistente || !estado.persistente) {
     $('aviso-armazenamento').textContent = ' Neste navegador o armazenamento está bloqueado, então o livro vale só enquanto a página estiver aberta.';

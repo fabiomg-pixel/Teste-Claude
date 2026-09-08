@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 
 from flask import (Flask, Response, abort, jsonify, render_template, request,
                    send_file, stream_with_context)
@@ -17,6 +18,9 @@ import assistant
 import epub_parser
 import retrieval
 import store
+import sync
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 80 * 1024 * 1024  # 80 MB
@@ -406,8 +410,105 @@ def api_chat(book_id: str):
     return _sse_response(generate())
 
 
+# --------------------------------------------------------------------------
+# sincronização entre aparelhos
+#
+# O leitor de página única é servido aqui mesmo (/celular): assim, no Mac e no
+# iPhone, ele roda na mesma origem do servidor e não há CORS nenhum. O APK
+# carrega a página dos próprios assets, e para ele — só para ele — as respostas
+# levam cabeçalhos de CORS.
+
+
+def _liberar_origem(resposta):
+    resposta.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
+    resposta.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+    resposta.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+    resposta.headers["Access-Control-Max-Age"] = "86400"
+    resposta.headers["Vary"] = "Origin"
+    return resposta
+
+
+@app.after_request
+def _cors(resposta):
+    if request.path.startswith("/api/sync"):
+        return _liberar_origem(resposta)
+    return resposta
+
+
+def _autorizado():
+    return sync.token_confere(request.headers.get("Authorization"))
+
+
+# O preflight (OPTIONS) é respondido automaticamente pelo Flask; o que falta
+# são os cabeçalhos, que o @app.after_request acima acrescenta.
+
+
+@app.route("/celular")
+def pagina_celular():
+    """O leitor de arquivo único, servido pelo próprio servidor."""
+    return send_file(os.path.join(BASE_DIR, "leitor-celular.html"),
+                     mimetype="text/html", max_age=0)
+
+
+@app.route("/api/sync/hello", methods=["GET", "POST"])
+def api_sync_hello():
+    if not _autorizado():
+        return jsonify({"error": "Token inválido ou ausente"}), 401
+    return jsonify({"ok": True, "servidor_em": time.time(), "livros": sync.listar()})
+
+
+@app.route("/api/sync/estado/<impressao>", methods=["GET", "POST"])
+def api_sync_estado(impressao: str):
+    if not _autorizado():
+        return jsonify({"error": "Token inválido ou ausente"}), 401
+    if request.method == "GET":
+        item = sync.ler(impressao)
+        return jsonify({"estado": item["estado"] if item else sync.estado_vazio(),
+                        "conhecido": item is not None})
+    corpo = request.get_json(silent=True) or {}
+    mesclado = sync.gravar(impressao, corpo.get("estado") or {},
+                           titulo=corpo.get("titulo", ""), autor=corpo.get("autor", ""))
+    return jsonify({"estado": mesclado})
+
+
+@app.route("/api/sync/arquivo/<impressao>", methods=["GET", "POST"])
+def api_sync_arquivo(impressao: str):
+    if not _autorizado():
+        return jsonify({"error": "Token inválido ou ausente"}), 401
+    if request.method == "GET":
+        caminho = sync.caminho_do_arquivo(impressao)
+        if not caminho:
+            abort(404, description="Arquivo não está no servidor")
+        return send_file(caminho, mimetype="application/epub+zip",
+                         as_attachment=True, download_name=f"{impressao}.epub")
+
+    arquivo = request.files.get("file")
+    dados = arquivo.read() if arquivo else request.get_data()
+    if not dados:
+        return jsonify({"error": "Nada enviado"}), 400
+    conferida = sync.impressao_digital(dados)
+    if conferida != impressao:
+        return jsonify({"error": "A impressão digital do arquivo não confere",
+                        "esperado": impressao, "recebido": conferida}), 400
+    return jsonify(sync.guardar_arquivo(
+        impressao, dados,
+        titulo=request.args.get("titulo", ""), autor=request.args.get("autor", ""))), 201
+
+
+@app.route("/api/sync/arquivo/<impressao>", methods=["DELETE"])
+def api_sync_apagar(impressao: str):
+    if not _autorizado():
+        return jsonify({"error": "Token inválido ou ausente"}), 401
+    sync.apagar(impressao)
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     store.init()
+    sync.preparar()
+    print("Leitor:      http://localhost:%s/" % os.environ.get("PORT", "5001"))
+    print("No celular:  http://<este-computador>:%s/celular" % os.environ.get("PORT", "5001"))
+    print("Token de sincronização: %s" % sync.token())
     port = int(os.environ.get("PORT", "5001"))
     app.run(host="0.0.0.0", port=port, debug=bool(os.environ.get("EPUB_DEBUG")),
             threaded=True)

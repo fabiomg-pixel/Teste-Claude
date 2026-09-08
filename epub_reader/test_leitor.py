@@ -8,6 +8,7 @@ também serve para conferir que nenhum trecho não lido chega ao modelo.
 
 from __future__ import annotations
 
+import atexit
 import io
 import json
 import os
@@ -16,8 +17,13 @@ import tempfile
 import unittest
 import zipfile
 
-TMP = tempfile.mkdtemp(prefix="leitor-teste-")
-os.environ["EPUB_DATA_DIR"] = TMP
+# Um diretório por processo, compartilhado com os outros módulos de teste: o
+# store fixa DATA_DIR no import, então quem importar primeiro manda. A limpeza
+# fica no atexit para não apagar a pasta enquanto o outro módulo ainda usa.
+_CRIOU = "EPUB_DATA_DIR" not in os.environ
+TMP = os.environ.setdefault("EPUB_DATA_DIR", tempfile.mkdtemp(prefix="leitor-teste-"))
+if _CRIOU:
+    atexit.register(shutil.rmtree, TMP, True)
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
 import app as flask_app  # noqa: E402
@@ -126,10 +132,6 @@ class LeitorTests(unittest.TestCase):
                 content_type="multipart/form-data",
             )
         cls.book_id = res.get_json()["id"]
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(TMP, ignore_errors=True)
 
     # -------------------------------------------------------------- parser
 

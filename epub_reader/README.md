@@ -53,6 +53,7 @@ nada além da fronteira aparece no que se manda ao modelo.
 | Conversa | Integrada, com resumos por capítulo | Monta o texto para você colar no app do Claude | Integrada, com a sua chave no aparelho |
 | Instalação | `pip install -r requirements.txt` | Nenhuma — é um arquivo HTML | Instalar o APK |
 | Anti-spoiler | Recorte no servidor, limitado pelo progresso | Mesmo recorte, feito no aparelho | Mesmo recorte, feito no aparelho |
+| Sincronia | é o servidor | com o servidor, se você ligar | com o servidor, se você ligar |
 
 `leitor-celular.html` é autossuficiente: abre EPUB (descompacta com
 `DecompressionStream`), pagina, guarda livro e anotações no navegador e monta o
@@ -63,6 +64,68 @@ O APK (veja [`android/`](../android/)) é uma casca de WebView em volta desse
 mesmo arquivo: a página detecta a ponte nativa e troca o copiar-e-colar por
 uma conversa em streaming, com a chamada à API feita em Java. Uma cópia só do
 leitor serve aos três caminhos.
+
+## Sincronizar entre aparelhos
+
+O servidor guarda o estado de leitura e os arquivos; cada aparelho manda o que
+tem e recebe **a mescla** de volta — nunca uma substituição.
+
+```bash
+cd epub_reader
+python app.py
+# Leitor:      http://localhost:5001/
+# No celular:  http://<este-computador>:5001/celular
+# Token de sincronização: xxxxxxxxxxxxxxxxxxxxxx
+```
+
+Depois, em cada aparelho, abra a estante do leitor → **Sincronizar entre
+aparelhos** → cole o endereço e o token. A partir daí:
+
+- **Android**: no aplicativo (o APK), ou no Chrome pelo endereço `/celular`.
+- **Mac**: `http://localhost:5001/celular` (ou o leitor completo em `/`).
+- **iPhone**: abra `/celular` no Safari e use *Compartilhar → Adicionar à Tela
+  de Início*. Vira um app com ícone e tela cheia, e a limpeza que o iOS faz em
+  dados de sites deixa de importar, porque o estado volta do servidor.
+
+Para alcançar o Mac de fora de casa sem abrir porta nenhuma na internet, o
+[Tailscale](https://tailscale.com) é o caminho mais simples: instale nos três
+aparelhos e use o endereço `100.x.y.z` ou o nome MagicDNS da máquina. Se quiser
+HTTPS de verdade (e com ele o `crypto.subtle` do navegador), `tailscale cert`
+resolve — mas não é necessário: o leitor calcula a impressão digital em
+JavaScript puro quando a origem não é segura.
+
+### Como a mescla decide
+
+| Campo | Regra | Por quê |
+|---|---|---|
+| `fronteira` | o **maior** dos dois | só cresce; é ela que sustenta o anti-spoiler, e não pode retroceder |
+| `posição` | a mais recente pelo relógio | quem leu por último manda |
+| destaques e notas | união por id, com lápides | apagar num aparelho apaga em todos, e nada ressuscita |
+
+Se você estiver lendo quando chega uma posição mais adiantada de outro
+aparelho, o leitor **não** arranca a página: mostra um aviso tocável
+("em outro aparelho você parou em…"), como faz o Kindle.
+
+O livro é identificado pela impressão digital do arquivo (tamanho + SHA-256 dos
+extremos), então o mesmo EPUB em dois aparelhos casa sozinho, sem depender de
+metadados.
+
+### Sobre a numeração dos blocos
+
+Posição e destaques são índices de bloco, então o servidor e o navegador
+precisam numerar os blocos **exatamente igual**. Por isso o parser do servidor
+usa o `html5lib`: ele implementa o algoritmo de análise do HTML5, o mesmo do
+navegador. Com o `html.parser` da biblioteca padrão, um `<p>` sem fechar —
+comum em EPUBs — desloca todos os blocos seguintes, e a posição vinda do
+celular cairia no lugar errado no Mac. O `test_sincronia_navegador.py` e o
+utilitário de comparação existem para pegar esse tipo de regressão.
+
+### Segurança
+
+O token é a única chave: quem o tiver e alcançar o endereço lê e escreve toda a
+sua biblioteca. Numa rede Tailscale isso é razoável — só os seus aparelhos
+alcançam a máquina. Não exponha esse servidor na internet aberta como está: não
+há usuários, limite de tentativas nem HTTPS próprio.
 
 ## Como rodar
 
@@ -87,17 +150,28 @@ você envia ao modelo ao conversar.
 | `EPUB_SUMMARY_MODEL` | igual ao acima | Modelo dos resumos de capítulo (use um menor para baratear) |
 | `EPUB_LLM_EFFORT` | `medium` | `low`/`medium`/`high`/`xhigh`/`max` |
 | `EPUB_DATA_DIR` | `epub_reader/data` | Onde ficam livros e banco |
+| `EPUB_SYNC_TOKEN` | gerado e guardado em `data/token-sync.txt` | Token da sincronização |
 | `PORT` | `5001` | Porta do servidor |
 
 ### Testes
 
 ```bash
 cd epub_reader
-python -m unittest test_leitor -v
+python -m unittest test_leitor test_sync -v
 ```
 
-Nove testes cobrindo o parser, a API de leitura, a busca, o caminho da
-conversa (com um cliente falso, sem gastar API) e a fronteira anti-spoiler.
+23 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
+(com um cliente falso, sem gastar API), a fronteira anti-spoiler e as regras de
+mescla da sincronização.
+
+Há ainda um teste de ponta a ponta que sobe o servidor e dirige **dois
+aparelhos** (dois navegadores isolados) sincronizando de verdade — precisa do
+Playwright:
+
+```bash
+pip install playwright && playwright install chromium
+python test_sincronia_navegador.py
+```
 
 ---
 
