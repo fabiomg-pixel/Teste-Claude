@@ -8,6 +8,7 @@ on:
     paths:
       - 'android/**'
       - 'epub_reader/leitor-celular.html'
+      - 'epub_reader/moldura-celular.html'
       - '.github/workflows/apk.yml'
 
 permissions:
@@ -41,8 +42,13 @@ jobs:
           APK=app/build/outputs/apk/debug/app-debug.apk
           test -f "$APK"
           ls -lh "$APK"
-          # o leitor precisa ter entrado nos assets do pacote
+          # o leitor precisa ter entrado nos assets do pacote…
           unzip -l "$APK" | grep -q 'assets/leitor.html'
+          # …já dentro da moldura: sem doctype o WebView renderiza em modo
+          # quirks, e sem o viewport a página não se ajusta à tela
+          unzip -p "$APK" assets/leitor.html > /tmp/leitor.html
+          head -c 15 /tmp/leitor.html | grep -qi '<!doctype html>'
+          grep -q 'width=device-width' /tmp/leitor.html
           echo "APK pronto."
 
       - name: Publicar o APK como artefato
