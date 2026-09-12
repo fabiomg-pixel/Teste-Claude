@@ -41,10 +41,21 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.11.0'
 }
 
-tasks.register('copiarLeitor', Copy) {
-    from("${rootDir}/../epub_reader/leitor-celular.html")
-    into("${layout.buildDirectory.get().asFile}/leitor")
-    rename { 'leitor.html' }
+// O leitor é um fragmento (é assim que ele vai publicado como artifact, onde o
+// <head> quem põe é o publicador). Aqui, como no /celular do servidor, ele
+// entra na moldura: doctype, charset, viewport e as metas de tela cheia.
+tasks.register('copiarLeitor') {
+    def fragmento = file("${rootDir}/../epub_reader/leitor-celular.html")
+    def moldura = file("${rootDir}/../epub_reader/moldura-celular.html")
+    def destino = file("${layout.buildDirectory.get().asFile}/leitor/leitor.html")
+    inputs.files(fragmento, moldura)
+    outputs.file(destino)
+    doLast {
+        def texto = moldura.getText('UTF-8')
+        assert texto.contains('<!--LEITOR-->') : 'moldura-celular.html sem <!--LEITOR-->'
+        destino.parentFile.mkdirs()
+        destino.write(texto.replace('<!--LEITOR-->', fragmento.getText('UTF-8')), 'UTF-8')
+    }
 }
 
 tasks.named('preBuild') { dependsOn 'copiarLeitor' }

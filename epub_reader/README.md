@@ -51,7 +51,7 @@ nada além da fronteira aparece no que se manda ao modelo.
 |---|---|---|---|
 | Onde roda | Flask + SQLite na sua máquina | Qualquer navegador, inclusive o do Android | Android 8 ou mais novo |
 | Conversa | Integrada, com resumos por capítulo | Monta o texto para você colar no app do Claude | Integrada, com a sua chave no aparelho |
-| Instalação | `pip install -r requirements.txt` | Nenhuma — é um arquivo HTML | Instalar o APK |
+| Instalação | `pip install -r requirements.txt` | Nenhuma — é um arquivo HTML (`python pagina.py`) | Instalar o APK |
 | Anti-spoiler | Recorte no servidor, limitado pelo progresso | Mesmo recorte, feito no aparelho | Mesmo recorte, feito no aparelho |
 | Sincronia | é o servidor | com o servidor, se você ligar | com o servidor, se você ligar |
 
@@ -64,6 +64,43 @@ O APK (veja [`android/`](../android/)) é uma casca de WebView em volta desse
 mesmo arquivo: a página detecta a ponte nativa e troca o copiar-e-colar por
 uma conversa em streaming, com a chamada à API feita em Java. Uma cópia só do
 leitor serve aos três caminhos.
+
+## O arquivo solto (iPhone, iPad, qualquer navegador)
+
+No iOS não existe equivalente do APK — instalar um aplicativo fora da App Store
+pede conta de desenvolvedor. O que existe é a página, e ela pode virar um
+arquivo só:
+
+```bash
+cd epub_reader
+python pagina.py leitor-iphone.html      # ~113 KB, nada além dele
+```
+
+O servidor também entrega o mesmo arquivo em `/leitor-iphone.html`, já como
+download.
+
+`leitor-celular.html` é um **fragmento** de propósito — é ele que vai publicado
+como artifact, e lá o `<head>` quem escreve é o publicador. Para as outras três
+bocas (o `/celular`, o asset do APK e este arquivo), `pagina.py` junta o
+fragmento com `moldura-celular.html`, que traz o que falta:
+
+| Sem a moldura | O que acontece |
+|---|---|
+| sem `<!doctype html>` | o navegador entra em modo *quirks* — não é o modo em que o leitor foi desenhado |
+| sem `<meta charset>` | num `file://` não há cabeçalho HTTP dizendo que é UTF-8, e os acentos viram lixo |
+| sem `<meta viewport>` | o Safari desenha a página com 980px de largura e encolhe tudo |
+| sem as metas da Apple | *Adicionar à Tela de Início* não dá tela cheia nem ícone |
+
+O ícone vai embutido em `data:` justamente para o arquivo continuar valendo
+sozinho, aberto de onde for. O Gradle usa a mesma moldura, então os três
+caminhos servem um documento idêntico.
+
+**O que se perde abrindo o arquivo direto (`file://`)**: nessa origem o Safari
+não deixa a página guardar nada, então o livro vale enquanto a aba está aberta e
+a estante amanhece vazia — a própria página avisa isso quando detecta o caso.
+Para a estante ficar (e para sincronizar), o arquivo precisa vir de um endereço
+`http(s)`: o `/celular` do seu servidor. Abrir o arquivo solto serve para ler
+agora, em qualquer aparelho, sem depender de nada.
 
 ## Sincronizar entre aparelhos
 
@@ -160,7 +197,7 @@ cd epub_reader
 python -m unittest test_leitor test_sync -v
 ```
 
-23 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
+25 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
 (com um cliente falso, sem gastar API), a fronteira anti-spoiler e as regras de
 mescla da sincronização.
 
@@ -210,6 +247,8 @@ epub_reader/
 ├── store.py          # SQLite (progresso, anotações, conversa, resumos) + JSON do livro
 ├── retrieval.py      # BM25 e busca literal, sempre com recorte por fronteira
 ├── assistant.py      # prompts, memória por capítulo, montagem do contexto, streaming
+├── pagina.py         # monta o leitor de arquivo único como documento completo
+├── moldura-celular.html  # doctype, charset, viewport e as metas de tela cheia
 ├── test_leitor.py    # testes de fumaça
 ├── templates/        # library.html, reader.html
 └── static/           # css/ e js/ (sem build, sem dependências de front-end)

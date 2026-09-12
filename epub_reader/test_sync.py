@@ -22,6 +22,7 @@ os.environ["EPUB_SYNC_TOKEN"] = "token-de-teste"
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
 import app as flask_app  # noqa: E402
+import pagina  # noqa: E402
 import sync  # noqa: E402
 from test_leitor import build_epub  # noqa: E402
 
@@ -167,6 +168,26 @@ class EndpointTests(unittest.TestCase):
         resposta = self.cliente.get("/celular")
         self.assertEqual(resposta.status_code, 200)
         self.assertIn(b"Leitor sem spoiler", resposta.data)
+
+    def test_pagina_vem_com_a_moldura(self):
+        """Sem doctype, charset e viewport a página chega errada ao celular."""
+        html = self.cliente.get("/celular").get_data(as_text=True)
+        self.assertTrue(html.lstrip().lower().startswith("<!doctype html>"))
+        self.assertIn('<meta charset="utf-8">', html)
+        self.assertIn("width=device-width", html)
+        self.assertIn('name="apple-mobile-web-app-capable"', html)
+        self.assertIn('rel="apple-touch-icon"', html)
+        self.assertNotIn(pagina.MARCA, html)       # o fragmento entrou no lugar
+        self.assertEqual(html.lower().count("<body"), 1)
+        self.assertIn("Abrir um EPUB", html)
+
+    def test_arquivo_para_guardar(self):
+        """O mesmo documento, servido como download — é o que vai para o iPhone."""
+        resposta = self.cliente.get("/leitor-iphone.html")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn("attachment", resposta.headers["Content-Disposition"])
+        self.assertEqual(resposta.get_data(as_text=True),
+                         self.cliente.get("/celular").get_data(as_text=True))
 
 
 if __name__ == "__main__":

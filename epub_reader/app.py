@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 
 import assistant
 import epub_parser
+import pagina
 import retrieval
 import store
 import sync
@@ -445,9 +446,22 @@ def _autorizado():
 
 @app.route("/celular")
 def pagina_celular():
-    """O leitor de arquivo único, servido pelo próprio servidor."""
-    return send_file(os.path.join(BASE_DIR, "leitor-celular.html"),
-                     mimetype="text/html", max_age=0)
+    """O leitor de arquivo único, servido pelo próprio servidor.
+
+    Montado a cada pedido (é a junção de dois arquivos, custa microssegundos) e
+    sem cache, para que editar o leitor apareça no celular ao recarregar.
+    """
+    return Response(pagina.montar(), mimetype="text/html",
+                    headers={"Cache-Control": "no-cache, max-age=0"})
+
+
+@app.route("/leitor-iphone.html")
+def baixar_leitor():
+    """A mesma página, mas para guardar: o arquivo que se abre sem servidor."""
+    return Response(pagina.montar(), mimetype="text/html", headers={
+        "Content-Disposition": 'attachment; filename="leitor-iphone.html"',
+        "Cache-Control": "no-cache, max-age=0",
+    })
 
 
 @app.route("/api/sync/hello", methods=["GET", "POST"])
