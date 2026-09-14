@@ -115,6 +115,9 @@ python app.py
 # Token de sincronização: xxxxxxxxxxxxxxxxxxxxxx
 ```
 
+Para deixar o servidor de pé no Mac sem depender de um terminal aberto, veja
+[**Manter no ar no Mac**](#manter-no-ar-no-mac), logo abaixo.
+
 Depois, em cada aparelho, abra a estante do leitor → **Sincronizar entre
 aparelhos** → cole o endereço e o token. A partir daí:
 
@@ -130,6 +133,45 @@ aparelhos e use o endereço `100.x.y.z` ou o nome MagicDNS da máquina. Se quise
 HTTPS de verdade (e com ele o `crypto.subtle` do navegador), `tailscale cert`
 resolve — mas não é necessário: o leitor calcula a impressão digital em
 JavaScript puro quando a origem não é segura.
+
+### Manter no ar no Mac
+
+`python app.py` num terminal serve para experimentar, mas morre quando você
+fecha a janela — e o iPhone só sincroniza quando encontra o servidor. Para o
+Mac servir sozinho:
+
+```bash
+cd epub_reader
+./instalar-no-mac.sh
+```
+
+O instalador cria um ambiente Python próprio (`.venv`), instala as
+dependências e registra um **LaunchAgent** em
+`~/Library/LaunchAgents/br.leitor.semspoiler.plist`. Com `RunAtLoad` o
+servidor sobe quando você faz login; com `KeepAlive`, o launchd o levanta de
+novo se ele cair. No fim ele imprime o endereço e o token que o iPhone pede.
+
+| | |
+|---|---|
+| Livros e anotações | `~/Library/Application Support/leitor-sem-spoiler` |
+| Registro | `~/Library/Logs/leitor-sem-spoiler.log` |
+| Ver se está de pé | `launchctl list \| grep semspoiler` |
+| Reiniciar | `launchctl kickstart -k gui/$(id -u)/br.leitor.semspoiler` |
+| Desligar e apagar | `./instalar-no-mac.sh --remover` (não encosta nos livros) |
+| Ver o que ele faria | `./instalar-no-mac.sh --ensaio` |
+
+A chave da API entra por `ANTHROPIC_API_KEY` no ambiente ou por uma pergunta
+na hora, e fica guardada no plist — que é escrito com modo `600` e, ao
+reinstalar, tem a chave anterior aproveitada. Rodar o instalador de novo
+atualiza tudo sem perder nada; é o jeito de aplicar uma versão nova do código.
+
+Duas coisas que o instalador não resolve por você:
+
+- **Um Mac dormindo não serve ninguém.** Em *Ajustes → Bateria → Opções*,
+  ligue «Impedir que o Mac durma automaticamente» (na tomada). Quem quiser
+  garantia extra: `caffeinate -s`.
+- **O firewall do macOS** pode perguntar se aceita conexões de entrada na
+  primeira vez. É preciso responder *Permitir*, senão o iPhone não chega.
 
 ### Como a mescla decide
 
@@ -248,6 +290,7 @@ epub_reader/
 ├── retrieval.py      # BM25 e busca literal, sempre com recorte por fronteira
 ├── assistant.py      # prompts, memória por capítulo, montagem do contexto, streaming
 ├── pagina.py         # monta o leitor de arquivo único como documento completo
+├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── moldura-celular.html  # doctype, charset, viewport e as metas de tela cheia
 ├── test_leitor.py    # testes de fumaça
 ├── templates/        # library.html, reader.html
