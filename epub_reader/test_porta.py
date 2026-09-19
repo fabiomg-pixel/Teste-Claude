@@ -126,6 +126,31 @@ class PortaTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertTrue(resposta.get_json()["ok"])
 
+    def test_disco_efemero_exige_token_e_chave_do_ambiente(self):
+        """Gerados em disco, eles nascem diferentes a cada reinício — e aí a
+        sincronia quebra em silêncio, que é o pior jeito de quebrar."""
+        antes = {k: os.environ.get(k) for k in
+                 ("EPUB_DISCO_EFEMERO", "EPUB_SYNC_TOKEN", "EPUB_SECRET")}
+        try:
+            os.environ["EPUB_DISCO_EFEMERO"] = "1"
+            for faltante in ("EPUB_SYNC_TOKEN", "EPUB_SECRET"):
+                os.environ["EPUB_SYNC_TOKEN"] = "t"
+                os.environ["EPUB_SECRET"] = "s"
+                os.environ.pop(faltante)
+                with self.assertRaises(SystemExit) as caso:
+                    porta.conferir_configuracao()
+                self.assertIn(faltante, str(caso.exception))
+            # com os dois definidos, sobe
+            os.environ["EPUB_SYNC_TOKEN"] = "t"
+            os.environ["EPUB_SECRET"] = "s"
+            porta.conferir_configuracao()
+        finally:
+            for k, v in antes.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
     def test_exigir_senha_sem_senha_derruba_a_subida(self):
         """Na nuvem, esquecer a senha tem de quebrar — não abrir."""
         antes_exigir, antes_senha = porta.EXIGIR, porta.SENHA

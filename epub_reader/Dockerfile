@@ -38,7 +38,12 @@ EXPOSE 8080
 # configuração inválida (a senha faltando, digamos) mata o worker, o mestre o
 # reergue, e o serviço fica batendo a cabeça para sempre em vez de falhar de
 # uma vez — que é o que se quer ver num deploy errado.
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--preload", \
-     "--worker-class", "gthread", "--workers", "1", "--threads", "8", \
-     "--timeout", "300", "--graceful-timeout", "30", \
-     "--access-logfile", "-", "app:app"]
+# A porta vem de $PORT: quase toda hospedagem a injeta, e cada uma escolhe um
+# número. Por isso a forma shell — na forma exec o ${PORT} não seria expandido,
+# e o serviço subiria escutando na porta errada, sem erro nenhum, só sem
+# responder. O `exec` mantém o gunicorn como PID 1, para receber o sinal de
+# parada e desligar direito.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} --preload \
+     --worker-class gthread --workers 1 --threads 8 \
+     --timeout 300 --graceful-timeout 30 \
+     --access-logfile - app:app"]

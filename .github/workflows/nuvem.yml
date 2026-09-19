@@ -33,10 +33,24 @@ jobs:
           echo "$saida" | grep -q 'EPUB_SENHA'
           echo "Recusou subir, como devia."
 
+      - name: Disco efêmero sem token fixo, tem de se recusar a subir
+        run: |
+          set -e
+          saida=$(docker run --rm -e EPUB_SENHA=x -e EPUB_DISCO_EFEMERO=1 \
+                  leitor-nuvem 2>&1) && codigo=0 || codigo=$?
+          echo "$saida"
+          test "$codigo" -ne 0 || { echo "SUBIU SEM TOKEN FIXO — a sincronia quebraria"; exit 1; }
+          echo "$saida" | grep -q 'EPUB_SYNC_TOKEN'
+          echo "Recusou, como devia."
+
       - name: Com senha, tem de servir
         run: |
           set -e
-          docker run -d --name leitor -p 8080:8080 \
+          # PORT injetada, como faz quase toda hospedagem — e diferente de 8080
+          # de propósito: na forma exec o ${PORT} não seria expandido e o
+          # serviço escutaria na porta errada sem dar erro nenhum.
+          docker run -d --name leitor -p 8080:9137 \
+            -e PORT=9137 \
             -e EPUB_SENHA='senha-do-teste' \
             -e EPUB_SYNC_TOKEN='token-do-teste' \
             leitor-nuvem

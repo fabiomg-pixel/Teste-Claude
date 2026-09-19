@@ -190,6 +190,60 @@ Outros caminhos, se preferir: qualquer VPS pequeno (Hetzner, DigitalOcean)
 com o mesmo Dockerfile e um systemd; ou um Raspberry Pi em casa, que é
 máquina ligada de novo, mas custa centavos de luz.
 
+#### Hospedagem gratuita, de disco efêmero
+
+Os planos gratuitos que não pedem cartão costumam vir com disco efêmero: o que
+o servidor grava some a cada deploy e a cada vez que o serviço acorda. Para
+quase todo aplicativo isso é impeditivo. Aqui não é — **o servidor não é o dono
+dos dados**. Cada aparelho tem o livro inteiro e o estado completo, e a mescla
+é comutativa e sem perda, então o primeiro aparelho que sincronizar depois de
+um reset repovoa o servidor sozinho.
+
+Isso é medido, não suposto — `test_disco_efemero.py` apaga a pasta de dados
+inteira com o servidor no ar, sobe tudo do zero e confere que o livro, o
+arquivo, a fronteira e os destaques voltam, e que um aparelho novo, só com
+endereço e token, recebe a biblioteca completa depois do reset:
+
+```bash
+cd epub_reader
+python test_disco_efemero.py
+```
+
+Duas coisas **não** se reconstroem, e são exatamente as que quebram calado:
+
+| Se nascer do disco | O que acontece a cada reinício |
+|---|---|
+| `EPUB_SYNC_TOKEN` | um token novo: todos os aparelhos passam a levar 401, sem explicação |
+| `EPUB_SECRET` | uma chave nova: todo mundo é deslogado quando o serviço acorda |
+
+Por isso, ligue `EPUB_DISCO_EFEMERO=1`: com ela o servidor **se recusa a subir**
+sem os dois definidos no ambiente. Para gerar os três valores:
+
+```bash
+cd epub_reader
+python segredos.py
+```
+
+Depois é a mesma imagem de sempre, em qualquer hospedagem que aceite um
+Dockerfile. O que ela precisa saber:
+
+| Variável | Valor |
+|---|---|
+| `EPUB_SENHA` | a senha do navegador |
+| `EPUB_SYNC_TOKEN` | o token dos aparelhos |
+| `EPUB_SECRET` | assina o cookie |
+| `EPUB_EXIGIR_SENHA` | `1` |
+| `EPUB_DISCO_EFEMERO` | `1` |
+| `EPUB_ATRAS_DE_PROXY` | `1` |
+
+A porta não precisa ser configurada: a imagem escuta na `$PORT` que a
+hospedagem injetar, e cai em 8080 se não houver nenhuma.
+
+O preço de um serviço que dorme é a espera na primeira página depois de um
+tempo parado. O leitor lida com isso: em erro de rede ou 5xx ele tenta de novo,
+com espera crescente, mostrando «acordando o servidor…» — um 401 ou 400, que
+são definitivos, ele não repete.
+
 #### A porta de entrada
 
 | | |
@@ -306,6 +360,7 @@ você envia ao modelo ao conversar.
 | `EPUB_EXIGIR_SENHA` | desligada | Recusa subir sem `EPUB_SENHA`; ligue na nuvem |
 | `EPUB_ATRAS_DE_PROXY` | desligada | Ligue quando houver um proxy HTTPS na frente |
 | `EPUB_SECRET` | gerada em `data/chave-sessao.txt` | Assina o cookie de sessão |
+| `EPUB_DISCO_EFEMERO` | desligada | Numa hospedagem sem disco fixo; exige token e chave no ambiente |
 | `PORT` | `5001` | Porta do servidor |
 
 ### Testes
@@ -315,7 +370,7 @@ cd epub_reader
 python -m unittest test_leitor test_sync test_porta -v
 ```
 
-42 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
+43 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
 (com um cliente falso, sem gastar API), a fronteira anti-spoiler e as regras de
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
@@ -368,6 +423,8 @@ epub_reader/
 ├── assistant.py      # prompts, memória por capítulo, montagem do contexto, streaming
 ├── pagina.py         # monta o leitor de arquivo único como documento completo
 ├── porta.py          # senha, cookie de sessão e freio de tentativas
+├── segredos.py       # gera senha, token e chave para a nuvem
+├── test_disco_efemero.py  # apaga o disco do servidor e vê os aparelhos o refazerem
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem
 ├── moldura-celular.html  # doctype, charset, viewport e as metas de tela cheia

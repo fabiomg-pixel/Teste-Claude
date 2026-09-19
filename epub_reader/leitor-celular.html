@@ -2268,19 +2268,42 @@
     return sha256(junto).slice(0, 32);
   }
 
+  /* Numa hospedagem gratuita o serviço dorme quando ninguém o usa, e o
+     primeiro pedido chega enquanto ele ainda está levantando: dá erro de rede
+     ou 502/503 por alguns segundos. Insistir é o certo — desistir na primeira
+     tentativa deixaria a sincronia quebrada justamente na hora em que a pessoa
+     abre o leitor. Um 401 ou um 400 não se repete: esses são definitivos. */
+  const TENTATIVAS_SYNC = 4;
+
   async function pedirAoServidor(caminho, opcoes) {
     const c = sincronia.config;
     const base = c.servidor.replace(/\/+$/, '');
-    const resposta = await fetch(base + caminho, Object.assign({}, opcoes, {
-      headers: Object.assign({ Authorization: 'Bearer ' + c.token }, (opcoes || {}).headers || {}),
-    }));
-    if (!resposta.ok) {
+    let ultimoErro = null;
+
+    for (let tentativa = 0; tentativa < TENTATIVAS_SYNC; tentativa++) {
+      if (tentativa > 0) {
+        marcarSincronia('acordando o servidor…');
+        await new Promise((r) => setTimeout(r, 1500 * tentativa));
+      }
+      let resposta;
+      try {
+        resposta = await fetch(base + caminho, Object.assign({}, opcoes, {
+          headers: Object.assign({ Authorization: 'Bearer ' + c.token },
+                                 (opcoes || {}).headers || {}),
+        }));
+      } catch (erro) {
+        ultimoErro = new Error('Não alcancei o servidor.');
+        continue;                       // rede fora, ou o serviço ainda subindo
+      }
+      if (resposta.ok) return resposta;
+
       let mensagem = 'Erro ' + resposta.status;
       if (resposta.status === 401) mensagem = 'O servidor não aceitou o token.';
       else { try { mensagem = (await resposta.json()).error || mensagem; } catch (e) { /* sem JSON */ } }
-      throw new Error(mensagem);
+      if (resposta.status < 500) throw new Error(mensagem);   // não adianta insistir
+      ultimoErro = new Error(mensagem);
     }
-    return resposta;
+    throw ultimoErro;
   }
 
   function estadoParaEnviar(id) {

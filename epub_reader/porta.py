@@ -47,7 +47,7 @@ def exigida() -> bool:
 
 
 def conferir_configuracao() -> None:
-    """Chamada na subida: na nuvem, sem senha é melhor não subir."""
+    """Chamada na subida: na nuvem, uma configuração errada é melhor não subir."""
     if EXIGIR and not SENHA:
         raise SystemExit(
             "EPUB_EXIGIR_SENHA está ligado e EPUB_SENHA está vazia.\n"
@@ -55,6 +55,24 @@ def conferir_configuracao() -> None:
             "contas, sem limite de tentativas, com a sua chave da API à mão.\n"
             "Defina a senha antes de subir  (ex.: fly secrets set EPUB_SENHA=…)."
         )
+
+    # Numa hospedagem de disco efêmero, tudo o que é gerado e guardado em disco
+    # nasce diferente a cada reinício. Os livros e o estado se reconstroem
+    # sozinhos (os aparelhos os reenviam), mas estes dois não: um token novo
+    # faz todos os aparelhos levarem 401 sem entender por quê, e uma chave de
+    # sessão nova desloga todo mundo a cada vez que o serviço acorda.
+    if os.environ.get("EPUB_DISCO_EFEMERO", "") not in ("", "0", "false", "no"):
+        faltando = [nome for nome in ("EPUB_SYNC_TOKEN", "EPUB_SECRET")
+                    if not os.environ.get(nome)]
+        if faltando:
+            raise SystemExit(
+                "EPUB_DISCO_EFEMERO está ligado e falta: " + ", ".join(faltando) + ".\n"
+                "Num disco que some a cada reinício, o que for gerado e salvo em\n"
+                "disco nasce diferente toda vez: com um token novo, os aparelhos\n"
+                "passam a levar 401 em silêncio; com uma chave de sessão nova,\n"
+                "todo mundo é deslogado a cada vez que o serviço acorda.\n"
+                "Defina os dois no ambiente do serviço, uma vez, e nunca mais."
+            )
 
 
 def chave_de_sessao() -> str:
