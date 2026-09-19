@@ -73,8 +73,10 @@ arquivo só:
 
 ```bash
 cd epub_reader
-python pagina.py leitor-iphone.html      # ~113 KB, nada além dele
+python pagina.py leitor-iphone.html
 ```
+
+São ~113 KB, e o arquivo não depende de mais nada.
 
 O servidor também entrega o mesmo arquivo em `/leitor-iphone.html`, já como
 download.
@@ -110,9 +112,14 @@ tem e recebe **a mescla** de volta — nunca uma substituição.
 ```bash
 cd epub_reader
 python app.py
-# Leitor:      http://localhost:5001/
-# No celular:  http://<este-computador>:5001/celular
-# Token de sincronização: xxxxxxxxxxxxxxxxxxxxxx
+```
+
+Ele imprime o que os outros aparelhos precisam:
+
+```
+Leitor:      http://localhost:5001/
+No celular:  http://<este-computador>:5001/celular
+Token de sincronização: xxxxxxxxxxxxxxxxxxxxxx
 ```
 
 Para deixar o servidor de pé no Mac sem depender de um terminal aberto, veja
@@ -148,13 +155,22 @@ chave da API) estava aberto a quem descobrisse a URL. Por isso o servidor
 agora tem senha: veja [A porta de entrada](#a-porta-de-entrada), logo abaixo.
 
 ```bash
-cd epub_reader                            # daqui, não da raiz do repositório
-fly launch --no-deploy --copy-config      # usa o fly.toml que já está aqui
-fly volumes create dados --size 3         # o disco que sobrevive ao deploy
-fly secrets set EPUB_SENHA='uma senha sua' \
-                ANTHROPIC_API_KEY='sk-ant-…'
+cd epub_reader
+fly launch --no-deploy --copy-config
+fly volumes create dados --size 3
+fly secrets set EPUB_SENHA='uma senha sua' ANTHROPIC_API_KEY='sk-ant-...'
 fly deploy
 ```
+
+De baixo para cima: o `launch` cria o app a partir do `fly.toml` que já está
+aqui (recuse Postgres e Redis, se ele oferecer — este leitor usa SQLite no
+volume), o `volumes` cria o disco que sobrevive ao deploy, e o `secrets`
+guarda a senha e a chave fora do repositório. Rode de dentro de
+`epub_reader/`: a raiz do repositório tem outro projeto.
+
+> Ao colar, note que estes blocos não têm comentários no fim das linhas de
+> propósito: o zsh do macOS **não** trata `#` como comentário no prompt, então
+> um `comando # explicação` colado vira `comando` com argumentos a mais.
 
 O `fly.toml` já vem com o que importa: volume em `/data`, `force_https`,
 health check em `/saude` e **`auto_stop_machines = "suspend"`** — a máquina
@@ -265,9 +281,12 @@ há usuários, limite de tentativas nem HTTPS próprio.
 cd epub_reader
 pip install -r requirements.txt
 
-export ANTHROPIC_API_KEY="sua-chave"     # opcional: sem ela, só a leitura funciona
-python app.py                            # http://localhost:5001
+export ANTHROPIC_API_KEY="sua-chave"
+python app.py
 ```
+
+A chave é opcional: sem ela o leitor funciona, só não conversa. O servidor
+sobe em http://localhost:5001.
 
 Adicione um `.epub` pela biblioteca (botão ou arrastando) e comece a ler. Os
 arquivos ficam em `epub_reader/data/` — nada sai da sua máquina exceto o que
