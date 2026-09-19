@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import secrets
+import shutil
 import time
 
 import store
@@ -227,6 +228,61 @@ def guardar_arquivo(impressao: str, dados: bytes, titulo: str = "", autor: str =
              json.dumps(estado_vazio(), ensure_ascii=False), caminho, len(dados), agora),
         )
     return {"impressao": impressao, "tamanho": len(dados)}
+
+
+def impressao_de_arquivo(caminho: str) -> str:
+    """A impressão digital de um EPUB que já está no disco.
+
+    Lê só os extremos, como a `impressao_digital`, em vez de carregar o livro
+    inteiro na memória.
+    """
+    tamanho = os.path.getsize(caminho)
+    with open(caminho, "rb") as fh:
+        comeco = fh.read(262144)
+        if tamanho > 262144:
+            fh.seek(max(tamanho - 262144, 262144))
+            fim = fh.read(262144)
+        else:
+            fim = b""
+    resumo = hashlib.sha256()
+    resumo.update(str(tamanho).encode())
+    resumo.update(comeco)
+    resumo.update(fim)
+    return resumo.hexdigest()[:32]
+
+
+def registrar_arquivo(caminho_origem: str, titulo: str = "", autor: str = "") -> str:
+    """Põe na sincronização um EPUB que já está guardado no servidor.
+
+    É o que faz um livro adicionado pela biblioteca do navegador aparecer no
+    celular. Liga (hard link) em vez de copiar — é o mesmo arquivo, e assim a
+    biblioteca e a sincronização não guardam duas vezes o mesmo livro.
+    """
+    preparar()
+    impressao = impressao_de_arquivo(caminho_origem)
+    pasta = os.path.join(store.DATA_DIR, "sync")
+    os.makedirs(pasta, exist_ok=True)
+    destino = os.path.join(pasta, f"{impressao}.epub")
+    if not os.path.exists(destino):
+        try:
+            os.link(caminho_origem, destino)
+        except OSError:
+            shutil.copyfile(caminho_origem, destino)   # outro sistema de arquivos
+    agora = time.time()
+    with store.connection() as conn:
+        conn.execute(
+            """INSERT INTO sync_livros (impressao, titulo, autor, estado, arquivo, tamanho, atualizado)
+                    VALUES (?,?,?,?,?,?,?)
+               ON CONFLICT(impressao) DO UPDATE SET
+                    arquivo = excluded.arquivo,
+                    tamanho = excluded.tamanho,
+                    titulo = COALESCE(NULLIF(excluded.titulo, ''), sync_livros.titulo),
+                    autor  = COALESCE(NULLIF(excluded.autor, ''), sync_livros.autor),
+                    atualizado = excluded.atualizado""",
+            (impressao, titulo or "", autor or "", json.dumps(estado_vazio(), ensure_ascii=False),
+             destino, os.path.getsize(destino), agora),
+        )
+    return impressao
 
 
 def apagar(impressao: str) -> None:

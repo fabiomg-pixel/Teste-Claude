@@ -156,6 +156,43 @@ class EndpointTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 400)
         self.assertIn("impressão digital", resposta.get_json()["error"])
 
+    def test_livro_da_biblioteca_entra_na_sincronia(self):
+        """Quem põe um EPUB pelo navegador tem de vê-lo aparecer no celular."""
+        with open(self.epub, "rb") as fh:
+            enviado = self.cliente.post(
+                "/api/books", data={"file": (io.BytesIO(fh.read()), "livro.epub")},
+                content_type="multipart/form-data")
+        self.assertEqual(enviado.status_code, 201)
+
+        listagem = self.cliente.get("/api/sync/hello", headers=self.cabecalho).get_json()
+        item = next((l for l in listagem["livros"] if l["impressao"] == self.impressao), None)
+        self.assertIsNotNone(item, "o livro não chegou à sincronização")
+        self.assertTrue(item["tem_arquivo"])
+
+        # e o que o celular baixa é o mesmo arquivo, byte a byte
+        baixado = self.cliente.get(f"/api/sync/arquivo/{self.impressao}",
+                                   headers=self.cabecalho)
+        self.assertEqual(baixado.data, self.dados)
+
+    def test_impressao_do_arquivo_bate_com_a_dos_bytes(self):
+        """As duas contas têm de dar no mesmo, senão o livro duplicaria."""
+        self.assertEqual(sync.impressao_de_arquivo(self.epub),
+                         sync.impressao_digital(self.dados))
+
+    def test_registrar_liga_em_vez_de_copiar(self):
+        """O mesmo livro na biblioteca e na sincronia não pode ocupar o dobro."""
+        outro = os.path.join(TMP, "so-deste-teste.epub")
+        build_epub(outro)
+        with open(outro, "ab") as fh:
+            fh.write(b"\n<!-- para a impressao digital nao colidir -->")
+
+        primeira = sync.registrar_arquivo(outro, "Livro")
+        caminho = sync.caminho_do_arquivo(primeira)
+        self.assertEqual(os.stat(caminho).st_ino, os.stat(outro).st_ino,
+                         "deveria ser o mesmo arquivo, ligado, e não uma cópia")
+        # e registrar de novo é inofensivo
+        self.assertEqual(sync.registrar_arquivo(outro, "Livro"), primeira)
+
     def test_cors_para_o_aplicativo(self):
         resposta = self.cliente.options(
             f"/api/sync/estado/{self.impressao}",

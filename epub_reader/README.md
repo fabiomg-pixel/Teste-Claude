@@ -134,11 +134,64 @@ HTTPS de verdade (e com ele o `crypto.subtle` do navegador), `tailscale cert`
 resolve — mas não é necessário: o leitor calcula a impressão digital em
 JavaScript puro quando a origem não é segura.
 
+### Na nuvem (o jeito que não depende de deixar máquina ligada)
+
+Depender do Mac aceso é o defeito do arranjo caseiro: o iPhone só sincroniza
+quando acha o servidor, e um laptop fechado não serve ninguém. Na nuvem o
+servidor fica de pé sozinho, com HTTPS de verdade, e os três aparelhos falam
+com o mesmo endereço.
+
+**Antes de subir, uma coisa tem de existir: uma porta.** Fora de casa o
+endereço é público, e até esta versão só `/api/sync/*` pedia credencial —
+todo o resto (a biblioteca, apagar um livro, e a conversa, que gasta a sua
+chave da API) estava aberto a quem descobrisse a URL. Por isso o servidor
+agora tem senha: veja [A porta de entrada](#a-porta-de-entrada), logo abaixo.
+
+```bash
+cd epub_reader                            # daqui, não da raiz do repositório
+fly launch --no-deploy --copy-config      # usa o fly.toml que já está aqui
+fly volumes create dados --size 3         # o disco que sobrevive ao deploy
+fly secrets set EPUB_SENHA='uma senha sua' \
+                ANTHROPIC_API_KEY='sk-ant-…'
+fly deploy
+```
+
+O `fly.toml` já vem com o que importa: volume em `/data`, `force_https`,
+health check em `/saude` e **`auto_stop_machines = "suspend"`** — a máquina
+dorme quando ninguém está lendo e acorda no primeiro pedido, que é o certo
+para um leitor pessoal, ocioso quase o dia inteiro. O preço é alguns segundos
+na primeira página depois de um tempo parado.
+
+Não consegui conferir os preços atuais do Fly (o ambiente onde este texto foi
+escrito não alcança o site deles), então confira na página de preços: a conta
+é uma máquina `shared-cpu-1x` de 512 MB, que dorme, mais alguns GB de volume.
+
+No iPhone: abra o endereço, digite a senha uma vez, e *Compartilhar →
+Adicionar à Tela de Início*. Na estante, ligue **Sincronizar entre aparelhos**
+com o mesmo endereço e o token (`fly ssh console -C 'cat /data/token-sync.txt'`).
+
+Outros caminhos, se preferir: qualquer VPS pequeno (Hetzner, DigitalOcean)
+com o mesmo Dockerfile e um systemd; ou um Raspberry Pi em casa, que é
+máquina ligada de novo, mas custa centavos de luz.
+
+#### A porta de entrada
+
+| | |
+|---|---|
+| `EPUB_SENHA` | a senha. **Sem ela não há porta** — é assim que o uso local continua sem atrito |
+| `EPUB_EXIGIR_SENHA=1` | o servidor **se recusa a subir** sem senha. Vai no `fly.toml`, para que esquecer derrube o deploy em vez de deixá-lo aberto |
+| `EPUB_ATRAS_DE_PROXY=1` | confia no `X-Forwarded-Proto`/`For` do proxy: sem isso o cookie não sai `Secure` e o freio contaria todo mundo como um IP só |
+| `EPUB_SECRET` | assina o cookie; se não existir, é gerada e guardada em `/data` — para as sessões não caírem a cada deploy |
+
+O cookie vale 30 dias, sai `HttpOnly`, `Secure` e `SameSite=Lax`, e oito erros
+de senha no mesmo IP custam cinco minutos de espera. A sincronização continua
+entrando pelo token `Bearer`, e não pelo cookie: o aplicativo do Android fala
+com `/api/sync/*` sem navegador.
+
 ### Manter no ar no Mac
 
-`python app.py` num terminal serve para experimentar, mas morre quando você
-fecha a janela — e o iPhone só sincroniza quando encontra o servidor. Para o
-Mac servir sozinho:
+Se ainda preferir a casa: `python app.py` num terminal serve para
+experimentar, mas morre quando você fecha a janela. Para o Mac servir sozinho:
 
 ```bash
 cd epub_reader
@@ -230,18 +283,23 @@ você envia ao modelo ao conversar.
 | `EPUB_LLM_EFFORT` | `medium` | `low`/`medium`/`high`/`xhigh`/`max` |
 | `EPUB_DATA_DIR` | `epub_reader/data` | Onde ficam livros e banco |
 | `EPUB_SYNC_TOKEN` | gerado e guardado em `data/token-sync.txt` | Token da sincronização |
+| `EPUB_SENHA` | vazia (sem porta) | Senha do servidor — obrigatória fora da sua máquina |
+| `EPUB_EXIGIR_SENHA` | desligada | Recusa subir sem `EPUB_SENHA`; ligue na nuvem |
+| `EPUB_ATRAS_DE_PROXY` | desligada | Ligue quando houver um proxy HTTPS na frente |
+| `EPUB_SECRET` | gerada em `data/chave-sessao.txt` | Assina o cookie de sessão |
 | `PORT` | `5001` | Porta do servidor |
 
 ### Testes
 
 ```bash
 cd epub_reader
-python -m unittest test_leitor test_sync -v
+python -m unittest test_leitor test_sync test_porta -v
 ```
 
-25 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
+42 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
 (com um cliente falso, sem gastar API), a fronteira anti-spoiler e as regras de
-mescla da sincronização.
+mescla da sincronização, e a porta de entrada (senha, freio, o que fica
+aberto e o que não).
 
 Há ainda um teste de ponta a ponta que sobe o servidor e dirige **dois
 aparelhos** (dois navegadores isolados) sincronizando de verdade — precisa do
@@ -290,7 +348,9 @@ epub_reader/
 ├── retrieval.py      # BM25 e busca literal, sempre com recorte por fronteira
 ├── assistant.py      # prompts, memória por capítulo, montagem do contexto, streaming
 ├── pagina.py         # monta o leitor de arquivo único como documento completo
+├── porta.py          # senha, cookie de sessão e freio de tentativas
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
+├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem
 ├── moldura-celular.html  # doctype, charset, viewport e as metas de tela cheia
 ├── test_leitor.py    # testes de fumaça
 ├── templates/        # library.html, reader.html
@@ -315,8 +375,11 @@ epub_reader/
 
 ## Limitações conhecidas
 
-- Um leitor por instalação: não há contas nem autenticação. Não exponha o
-  servidor na internet como está.
+- Um leitor por instalação: há uma senha só, não contas. Serve para uma
+  pessoa; não serve para dividir a biblioteca com alguém dando a mesma senha.
+- Um livro que o celular envia pela sincronização fica disponível para os
+  outros aparelhos, mas não entra na biblioteca do servidor (a de `/`). O
+  caminho contrário — pôr pelo navegador e receber no celular — funciona.
 - DRM não é suportado (nem contornado): só EPUBs livres de proteção.
 - Destaques são localizados pelo texto dentro do bloco; se a mesma frase
   aparecer duas vezes no mesmo parágrafo, a primeira ocorrência é marcada.

@@ -1,0 +1,45 @@
+# Configuração do Fly.io. Ajuste o `app` para o nome que você escolher.
+#
+#   cd epub_reader
+#   fly launch --no-deploy --copy-config    # cria o app com este arquivo
+#   fly volumes create dados --size 3       # o disco que sobrevive ao deploy
+#   fly secrets set EPUB_SENHA='…' ANTHROPIC_API_KEY='sk-ant-…'
+#   fly deploy
+
+app = "leitor-sem-spoiler"
+primary_region = "gru"          # São Paulo: o mais perto daqui
+
+[build]
+
+[env]
+  PORT = "8080"
+  EPUB_DATA_DIR = "/data"
+  EPUB_ATRAS_DE_PROXY = "1"     # confia no X-Forwarded-Proto/For do proxy
+  EPUB_EXIGIR_SENHA = "1"       # sem EPUB_SENHA, o servidor se recusa a subir
+
+# Os livros, o banco e o token vivem aqui. Sem o volume, cada deploy
+# recomeçaria com a estante vazia.
+[[mounts]]
+  source = "dados"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Dorme quando ninguém está lendo e acorda no primeiro pedido: um leitor
+  # pessoal fica ocioso quase o dia inteiro, e máquina parada não se cobra.
+  # O preço é alguns segundos na primeira página depois de um tempo parado.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/saude"             # aberta de propósito: não exige a senha
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"              # o parser e o índice BM25 cabem folgados

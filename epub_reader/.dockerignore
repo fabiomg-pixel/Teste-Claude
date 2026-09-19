@@ -1,0 +1,9 @@
+# Nada disso tem o que fazer dentro da imagem — e `data/` em especial são os
+# seus livros: na nuvem eles vivem no volume, não no build.
+data/
+.venv/
+__pycache__/
+*.pyc
+test_*.py
+*.epub
+.DS_Store

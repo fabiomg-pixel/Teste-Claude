@@ -1,0 +1,81 @@
+name: Imagem da nuvem
+
+# O ambiente onde este projeto é desenvolvido não alcança o Docker Hub, então
+# quem constrói e experimenta a imagem é o CI. Sem isto, o Dockerfile só seria
+# testado no primeiro `fly deploy` — que é o pior lugar para descobrir um erro.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'epub_reader/**'
+      - '.github/workflows/nuvem.yml'
+
+jobs:
+  imagem:
+    name: Construir e experimentar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir
+        working-directory: epub_reader
+        run: docker build -t leitor-nuvem .
+
+      - name: Sem senha, tem de se recusar a subir
+        working-directory: epub_reader
+        run: |
+          set -e
+          saida=$(docker run --rm -e EPUB_EXIGIR_SENHA=1 leitor-nuvem 2>&1) && codigo=0 || codigo=$?
+          echo "$saida"
+          test "$codigo" -ne 0 || { echo "SUBIU SEM SENHA — inaceitável"; exit 1; }
+          echo "$saida" | grep -q 'EPUB_SENHA'
+          echo "Recusou subir, como devia."
+
+      - name: Com senha, tem de servir
+        run: |
+          set -e
+          docker run -d --name leitor -p 8080:8080 \
+            -e EPUB_SENHA='senha-do-teste' \
+            -e EPUB_SYNC_TOKEN='token-do-teste' \
+            leitor-nuvem
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/saude > /dev/null 2>&1 && break
+            sleep 1
+          done
+
+          echo "--- /saude responde sem senha (é o health check) ---"
+          curl -fsS http://127.0.0.1:8080/saude
+
+          echo "--- a biblioteca fica atrás da porta ---"
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)
+          test "$codigo" = "302" || { echo "esperava 302, veio $codigo"; exit 1; }
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/books)
+          test "$codigo" = "401" || { echo "esperava 401, veio $codigo"; exit 1; }
+
+          echo "--- a senha abre ---"
+          curl -s -c /tmp/bolacha -o /dev/null -d 'senha=senha-do-teste' \
+            http://127.0.0.1:8080/entrar
+          codigo=$(curl -s -b /tmp/bolacha -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)
+          test "$codigo" = "200" || { echo "a senha não abriu: $codigo"; exit 1; }
+
+          echo "--- e o leitor do celular vem inteiro, com a moldura ---"
+          curl -s -b /tmp/bolacha http://127.0.0.1:8080/celular > /tmp/celular.html
+          head -c 15 /tmp/celular.html | grep -qi '<!doctype html>'
+          grep -q 'width=device-width' /tmp/celular.html
+
+          echo "--- a sincronização entra pelo token, sem cookie ---"
+          curl -fsS -H 'Authorization: Bearer token-do-teste' \
+            http://127.0.0.1:8080/api/sync/hello
+
+          echo
+          echo "Imagem de pé e trancada."
+
+      - name: O registro, se algo falhar
+        if: failure()
+        run: docker logs leitor || true
+
+      - name: Desmontar
+        if: always()
+        run: docker rm -f leitor || true

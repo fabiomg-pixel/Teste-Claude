@@ -17,6 +17,7 @@ from werkzeug.utils import secure_filename
 import assistant
 import epub_parser
 import pagina
+import porta
 import retrieval
 import store
 import sync
@@ -26,6 +27,24 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 80 * 1024 * 1024  # 80 MB
 app.config["JSON_SORT_KEYS"] = False
+
+# Atrás do proxy da hospedagem, o pedido chega em http mesmo quando o
+# navegador falou https. Sem isto o cookie de sessão não é marcado como
+# seguro e o IP do cliente vira o do proxy — e aí o freio de tentativas
+# contaria todo mundo como uma pessoa só.
+if os.environ.get("EPUB_ATRAS_DE_PROXY"):
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+    app.config["SESSION_COOKIE_SECURE"] = True
+
+porta.instalar(app)
+
+# A preparação fica aqui, e não no __main__, porque na nuvem quem sobe o app
+# é o gunicorn: ele importa este módulo e nunca executa o __main__. Tudo aqui
+# é idempotente — importar duas vezes não custa nada.
+porta.conferir_configuracao()
+store.init()
+sync.preparar()
 
 
 # --------------------------------------------------------------------------
@@ -150,6 +169,14 @@ def api_upload_book():
         {"id": book_id, "blocks": content["total_blocks"],
          "words": content["total_words"], "chapters": len(content["chapters"])},
     )
+    # E o livro entra também na sincronização, para descer sozinho no celular:
+    # sem isto, um EPUB adicionado aqui ficaria só nesta biblioteca. Se falhar
+    # (disco cheio, por exemplo), o livro já está salvo — não é motivo para
+    # recusar o envio.
+    try:
+        sync.registrar_arquivo(epub_path, meta["title"], meta.get("creator", ""))
+    except Exception as exc:                                  # noqa: BLE001
+        app.logger.warning("não consegui pôr %s na sincronização: %s", book_id, exc)
     return jsonify({"id": book_id, "title": meta["title"], "author": meta.get("creator", "")}), 201
 
 
@@ -518,8 +545,6 @@ def api_sync_apagar(impressao: str):
 
 
 if __name__ == "__main__":
-    store.init()
-    sync.preparar()
     print("Leitor:      http://localhost:%s/" % os.environ.get("PORT", "5001"))
     print("No celular:  http://<este-computador>:%s/celular" % os.environ.get("PORT", "5001"))
     print("Token de sincronização: %s" % sync.token())
