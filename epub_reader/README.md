@@ -51,7 +51,7 @@ nada além da fronteira aparece no que se manda ao modelo.
 |---|---|---|---|
 | Onde roda | Flask + SQLite na sua máquina | Qualquer navegador, inclusive o do Android | Android 8 ou mais novo |
 | Conversa | Integrada, com resumos por capítulo | Monta o texto para você colar no app do Claude | Integrada, com a sua chave no aparelho |
-| Instalação | `pip install -r requirements.txt` | Nenhuma — é um arquivo HTML (`python pagina.py`) | Instalar o APK |
+| Instalação | `python3 -m pip install -r requirements.txt` | Nenhuma — é um arquivo HTML (`python3 pagina.py`) | Instalar o APK |
 | Anti-spoiler | Recorte no servidor, limitado pelo progresso | Mesmo recorte, feito no aparelho | Mesmo recorte, feito no aparelho |
 | Sincronia | é o servidor | com o servidor, se você ligar | com o servidor, se você ligar |
 
@@ -73,7 +73,7 @@ arquivo só:
 
 ```bash
 cd epub_reader
-python pagina.py leitor-iphone.html
+python3 pagina.py leitor-iphone.html
 ```
 
 São ~113 KB, e o arquivo não depende de mais nada.
@@ -111,7 +111,7 @@ tem e recebe **a mescla** de volta — nunca uma substituição.
 
 ```bash
 cd epub_reader
-python app.py
+python3 app.py
 ```
 
 Ele imprime o que os outros aparelhos precisam:
@@ -206,7 +206,7 @@ endereço e token, recebe a biblioteca completa depois do reset:
 
 ```bash
 cd epub_reader
-python test_disco_efemero.py
+python3 test_disco_efemero.py
 ```
 
 Duas coisas **não** se reconstroem, e são exatamente as que quebram calado:
@@ -221,7 +221,7 @@ sem os dois definidos no ambiente. Para gerar os três valores:
 
 ```bash
 cd epub_reader
-python segredos.py
+python3 segredos.py
 ```
 
 Depois é a mesma imagem de sempre, em qualquer hospedagem que aceite um
@@ -260,7 +260,7 @@ com `/api/sync/*` sem navegador.
 
 ### Manter no ar no Mac
 
-Se ainda preferir a casa: `python app.py` num terminal serve para
+Se ainda preferir a casa: `python3 app.py` num terminal serve para
 experimentar, mas morre quando você fecha a janela. Para o Mac servir sozinho:
 
 ```bash
@@ -333,10 +333,10 @@ há usuários, limite de tentativas nem HTTPS próprio.
 
 ```bash
 cd epub_reader
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 export ANTHROPIC_API_KEY="sua-chave"
-python app.py
+python3 app.py
 ```
 
 A chave é opcional: sem ela o leitor funciona, só não conversa. O servidor
@@ -367,7 +367,7 @@ você envia ao modelo ao conversar.
 
 ```bash
 cd epub_reader
-python -m unittest test_leitor test_sync test_porta -v
+python3 -m unittest test_leitor test_sync test_porta -v
 ```
 
 43 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
@@ -380,8 +380,8 @@ aparelhos** (dois navegadores isolados) sincronizando de verdade — precisa do
 Playwright:
 
 ```bash
-pip install playwright && playwright install chromium
-python test_sincronia_navegador.py
+python3 -m pip install playwright && python3 -m playwright install chromium
+python3 test_sincronia_navegador.py
 ```
 
 ---

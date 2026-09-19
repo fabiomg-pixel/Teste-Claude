@@ -11,7 +11,7 @@ página com 980px e encolhe tudo) e as metas de «Adicionar à Tela de Início»
 A moldura vive em `moldura-celular.html` para que o Gradle possa usar a mesma,
 sem passar por aqui.
 
-    python pagina.py leitor-iphone.html
+    python3 pagina.py leitor-iphone.html
 """
 
 from __future__ import annotations

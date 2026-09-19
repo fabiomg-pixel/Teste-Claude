@@ -55,7 +55,7 @@ fi
 if [ "$(uname)" != "Darwin" ] && [ "$ensaio" = 0 ]; then
   echo "Este instalador é do macOS (usa launchd)." >&2
   echo "Em Linux, o equivalente é um serviço de usuário do systemd; no Windows," >&2
-  echo "o Agendador de Tarefas. Para só experimentar: python app.py" >&2
+  echo "o Agendador de Tarefas. Para só experimentar: python3 app.py" >&2
   exit 1
 fi
 

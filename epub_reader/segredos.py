@@ -1,6 +1,6 @@
 """Gera os três segredos que o servidor pede na nuvem, prontos para colar.
 
-    python segredos.py
+    python3 segredos.py
 
 Eles não vão para o repositório nem para a imagem: são variáveis de ambiente
 do serviço, definidas uma vez no painel da hospedagem. Numa hospedagem de
