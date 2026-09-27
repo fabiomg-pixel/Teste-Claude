@@ -11,6 +11,29 @@ correr o risco de receber de volta o final do livro.
 
 ---
 
+## Duas fronteiras, e só uma se abre
+
+**A do enredo não se negocia.** O modelo só conhece o que aconteceu no livro até
+onde você leu, e isso não tem interruptor: é o que a ferramenta é.
+
+**A do conhecimento externo tem.** Por padrão, o modelo pode trazer conceitos,
+história, ciência e referências culturais, mas nada de fora sobre *esta obra* —
+nem crítica, nem o autor, nem a recepção. O botão **🔎 Crítica e contexto da
+obra**, na folha de perguntar, libera isso.
+
+Por que é um botão e não o padrão: quem escreve crítica terminou o livro, e quase
+toda observação crítica carrega o todo dentro dela. Aberto o portão, a proibição
+de spoiler deixa de ser «não use o que você sabe» e passa a ser «use,
+filtrando» — mais difícil e mais frágil. As regras mandam o modelo filtrar
+explicitamente, e dizer «existe algo a dizer aqui depois que você terminar» em
+vez de contornar; a tela avisa que o risco sobe. A escolha fica lembrada, e
+aparece na barra do alto sempre que você for perguntar, para nunca ser uma
+surpresa.
+
+O que o botão **não** faz: abrir o texto não lido. O recorte enviado continua
+parando na sua fronteira nos dois estados, e o teste confere isso com o portão
+aberto.
+
 ## A fronteira anti-spoiler
 
 O ponto central do projeto. O livro é fatiado em **blocos** (parágrafos,

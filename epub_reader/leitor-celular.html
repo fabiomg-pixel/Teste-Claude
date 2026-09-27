@@ -507,6 +507,16 @@
 
   .modos { display: flex; gap: .4rem; flex-wrap: wrap; padding: .75rem .3rem .3rem; }
 
+  /* O portão da crítica fica fora da fileira dos modos de propósito: não é uma
+     tarefa entre outras, é uma mudança no acordo de spoiler, e tem de parecer
+     uma. Quando ligado, muda de cor e a nota abaixo explica o que mudou. */
+  .abertura { padding: .5rem .3rem 0; }
+  .abertura .ficha { width: 100%; text-align: left; }
+  .abertura .ficha[aria-pressed="true"] {
+    border-color: var(--acento);
+    background: color-mix(in srgb, var(--acento) 16%, transparent);
+  }
+
   .campo {
     width: 100%;
     min-height: 4.5rem;
@@ -885,6 +895,13 @@
       <button class="ficha" data-modo-pergunta="contexto">Contexto</button>
     </div>
 
+    <div class="abertura">
+      <button class="ficha" id="abrir-critica" aria-pressed="false">
+        <span aria-hidden="true">🔎</span> Crítica e contexto da obra
+      </button>
+      <p class="vazio" id="nota-critica" style="padding:.45rem .3rem 0"></p>
+    </div>
+
     <div class="pilha">
       <textarea class="campo" id="pergunta" placeholder="O que você quer perguntar sobre o que já leu?"></textarea>
       <div id="trecho-escolhido" class="vazio oculto" style="padding:.5rem .6rem;border-radius:9px;background:color-mix(in srgb, var(--acento) 8%, transparent)"></div>
@@ -978,7 +995,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 14;
+  const VERSAO = 15;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -1636,6 +1653,7 @@ setTimeout(function () {
     ppm: 220,
     selecionado: '',
     modoPergunta: 'perguntar',
+    critica: estado.ler('leitor.critica', false),
   };
 
   function chaveDoLivro(id) { return 'leitor.estado.' + id; }
@@ -2118,26 +2136,56 @@ setTimeout(function () {
    * 5. A ponte: o texto que você cola no Claude
    * ================================================================== */
 
-  const REGRAS = [
-    'Você é um companheiro de leitura. Estou lendo o livro abaixo e ainda não terminei.',
-    '',
-    'REGRA ABSOLUTA: você só conhece este livro até o ponto de leitura indicado.',
-    'Tudo o que existe para você está no material colado aqui. Mesmo que você',
-    'reconheça a obra e saiba o resto, é proibido revelar, insinuar, antecipar ou',
-    'dar pistas sobre o que vem depois — reviravoltas, destinos de personagens,',
-    'revelações, o final, ou o sentido retroativo de algo que ainda parece banal.',
-    'Não diga que algo "vai fazer sentido mais adiante": isso já é spoiler.',
-    'Se eu perguntar sobre o que vem pela frente, recuse em uma frase e ofereça',
-    'outra coisa: hipóteses a partir do que já li (rotuladas como especulação) ou',
-    'um aprofundamento do que já aconteceu.',
-    '',
-    'Conhecimento externo sobre conceitos, história, ciência, língua e referências',
-    'culturais é bem-vindo — deixe claro o que vem do livro e o que vem de fora.',
-    'Conhecimento externo sobre ESTA obra (enredo posterior, leitura crítica que',
-    'pressupõe o todo) é vedado.',
-    '',
-    'Responda em português do Brasil, direto ao ponto, sem preâmbulo.',
-  ].join('\n');
+  /* A fronteira do enredo é a mesma nos dois casos, e não se negocia. O que
+     muda é se o modelo pode trazer o que se escreveu SOBRE o livro.
+
+     Por padrão não pode, e a razão é prática: quem escreve crítica terminou o
+     livro, e quase toda observação crítica carrega o todo dentro dela. Aberto o
+     portão, a proibição de spoiler deixa de ser «não use o que você sabe» e
+     passa a ser «use, filtrando» — que é uma tarefa mais difícil e mais frágil.
+     Daí o texto abaixo ser explícito sobre isso, e a tela avisar. */
+  function regras(abertura) {
+    const linhas = [
+      'Você é um companheiro de leitura. Estou lendo o livro abaixo e ainda não terminei.',
+      '',
+      'REGRA ABSOLUTA: você só conhece o ENREDO deste livro até o ponto de leitura',
+      'indicado. Mesmo que você reconheça a obra e saiba o resto, é proibido revelar,',
+      'insinuar, antecipar ou dar pistas sobre o que vem depois — reviravoltas,',
+      'destinos de personagens, revelações, o final, ou o sentido retroativo de algo',
+      'que ainda parece banal. Não diga que algo "vai fazer sentido mais adiante":',
+      'isso já é spoiler. Se eu perguntar sobre o que vem pela frente, recuse em uma',
+      'frase e ofereça outra coisa: hipóteses a partir do que já li (rotuladas como',
+      'especulação) ou um aprofundamento do que já aconteceu.',
+      '',
+    ];
+
+    if (abertura && abertura.critica) {
+      linhas.push(
+        'CONHECIMENTO EXTERNO: liberado, inclusive sobre ESTA obra — leitura crítica,',
+        'o autor e sua trajetória, a época, a recepção, o lugar do livro numa tradição,',
+        'escolhas de forma e de estilo, questões de tradução.',
+        '',
+        'Duas ressalvas, e são firmes. Primeira: a REGRA ABSOLUTA continua valendo',
+        'sobre tudo isto. A crítica que você conhece foi escrita por quem terminou o',
+        'livro — filtre-a. Não traga a observação que só faz sentido para quem sabe o',
+        'final, não diga que um tema "prepara" algo, e não deixe escapar na análise o',
+        'que o enredo ainda não me revelou. Se uma ideia crítica interessante não',
+        'sobrevive a esse filtro, diga que existe algo a dizer ali depois que eu',
+        'terminar, e pare aí. Segunda: marque a procedência de cada afirmação — do',
+        'texto que eu li, ou de fora dele.',
+      );
+    } else {
+      linhas.push(
+        'CONHECIMENTO EXTERNO sobre conceitos, história, ciência, língua e referências',
+        'culturais é bem-vindo — deixe claro o que vem do livro e o que vem de fora.',
+        'Conhecimento externo sobre ESTA obra (enredo posterior, leitura crítica que',
+        'pressupõe o todo) é vedado.',
+      );
+    }
+
+    linhas.push('', 'Responda em português do Brasil, direto ao ponto, sem preâmbulo.');
+    return linhas.join('\n');
+  }
 
   const TAREFAS = {
     perguntar: '',
@@ -2178,7 +2226,8 @@ setTimeout(function () {
      app) e a mensagem com o recorte do livro. A versão para copiar é apenas
      a junção das duas. */
   function montarPedido() {
-    if (!app.livro) return { sistema: REGRAS, mensagem: '', pergunta: '' };
+    const sistema = regras({ critica: app.critica });
+    if (!app.livro) return { sistema, mensagem: '', pergunta: '' };
     const pergunta = $('pergunta').value.trim();
     const tarefa = TAREFAS[app.modoPergunta] || '';
     const capituloAtual = capituloDoBloco(app.fronteira);
@@ -2227,7 +2276,7 @@ setTimeout(function () {
     if (pergunta) partes.push(pergunta);
     if (!tarefa && !pergunta) partes.push('Comente o que eu li até aqui.');
 
-    return { sistema: REGRAS, mensagem: partes.join('\n'), pergunta };
+    return { sistema, mensagem: partes.join('\n'), pergunta };
   }
 
   function montarPacote() {
@@ -2235,16 +2284,39 @@ setTimeout(function () {
     return pedido.sistema + '\n\n' + pedido.mensagem;
   }
 
+  /* Uma função só desenha o estado do portão, porque ele aparece em dois
+     lugares — o próprio botão e a barra da fronteira no alto — e os dois
+     dizendo coisas diferentes seria pior do que não dizer nada. */
+  function desenharAbertura() {
+    const botao = $('abrir-critica');
+    if (botao) botao.setAttribute('aria-pressed', String(!!app.critica));
+    const nota = $('nota-critica');
+    if (nota) {
+      nota.textContent = app.critica
+        ? 'Ligado: o modelo pode usar crítica, biografia e recepção desta obra. A '
+          + 'fronteira do enredo continua valendo, mas quem escreve crítica já '
+          + 'terminou o livro — o risco de um spoiler escapar sobe. Desligue para '
+          + 'voltar ao acordo estrito.'
+        : 'Desligado: o modelo só conhece esta obra pelo que você leu. Ligue para '
+          + 'ele poder falar do autor, da época e do que a crítica diz — útil para '
+          + 'refletir, com um pouco mais de risco.';
+    }
+  }
+
   function atualizarPrevia() {
     if (!app.livro) return;
+    desenharAbertura();
     const texto = montarPacote();
     $('previa').textContent = texto;
     const palavras = texto.split(/\s+/).length;
     $('tamanho-pacote').textContent = '≈ ' + palavras.toLocaleString('pt-BR') + ' palavras';
     const capitulo = capituloDoBloco(app.fronteira);
     const pct = ((app.fronteira + 1) / Math.max(app.livro.totalBlocos, 1) * 100).toFixed(0);
-    $('texto-fronteira').innerHTML = 'O texto copiado vai só até <b>«' + escapar(capitulo ? capitulo.titulo : '') +
-      '»</b>, onde você está — ' + pct + '% do livro. O resto fica de fora.';
+    $('texto-fronteira').innerHTML = 'O texto vai só até <b>«' + escapar(capitulo ? capitulo.titulo : '') +
+      '»</b>, onde você está — ' + pct + '% do livro. O resto fica de fora.' +
+      (app.critica
+        ? ' <b>Crítica da obra liberada</b>, o que amplia o que o modelo pode trazer de fora.'
+        : '');
   }
 
   async function copiarPacote() {
@@ -3733,6 +3805,15 @@ setTimeout(function () {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
+  ao('abrir-critica', 'click', () => {
+    app.critica = !app.critica;
+    estado.gravar('leitor.critica', app.critica);
+    atualizarPrevia();
+    aviso(app.critica
+      ? 'Crítica e contexto da obra liberados — o enredo continua protegido'
+      : 'De volta ao acordo estrito: só o que você leu');
+  });
+
   ao('copiar', 'click', copiarPacote);
   ao('baixar', 'click', baixarPacote);
 

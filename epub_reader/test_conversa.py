@@ -231,8 +231,48 @@ with sync_playwright() as p:
         if roteiro == "semCredito":
             pg.evaluate("() => api.motorNavegador.mudar('pedido', 'completo')")
 
+    print("8b. o portão da crítica muda o acordo, e só ele")
+    pg.evaluate("() => { window.__API.roteiro('normal'); window.__API.limpar(); }")
+    # desligado: o padrão. Conhecimento externo sobre a obra é vedado.
+    perguntar(pg, "o que a crítica diz deste livro?")
+    estrito = pg.evaluate("() => window.__API.ultimo().corpo.system")
+    pg.evaluate("() => document.getElementById('abrir-critica').click()")
+    pg.wait_for_timeout(300)
+    pg.evaluate("() => window.__API.limpar()")
+    perguntar(pg, "o que a crítica diz deste livro?")
+    aberto = pg.evaluate("() => window.__API.ultimo().corpo.system")
+    print("   desligado diz «vedado»:", "é vedado" in estrito)
+    print("   ligado diz «liberado»:", "liberado" in aberto)
+    if "é vedado" not in estrito:
+        falhas.append("o padrão deixou de vedar conhecimento externo sobre a obra")
+    if "liberado" not in aberto or "recepção" not in aberto:
+        falhas.append("ligado, o portão não liberou crítica e contexto")
+    # o que NÃO pode mudar: a fronteira do enredo, nos dois estados
+    for rotulo, texto in (("estrito", estrito), ("aberto", aberto)):
+        if "REGRA ABSOLUTA" not in texto or "é proibido revelar" not in texto:
+            falhas.append(f"{rotulo}: a regra da fronteira do enredo desapareceu")
+    if "filtre-a" not in aberto:
+        falhas.append("aberto: falta mandar o modelo filtrar a crítica que pressupõe o fim")
+    # e o recorte do livro continua parando na fronteira com o portão aberto
+    vazados = pg.evaluate("""() => {
+      const corpo = JSON.stringify(window.__API.ultimo().corpo);
+      return api.app.livro.blocos.filter(b => b.i > api.app.fronteira)
+        .filter(b => b.t && b.t.length > 40 && corpo.includes(b.t.slice(0, 40))).length;
+    }""")
+    print("   com o portão aberto, blocos não lidos enviados:", vazados)
+    if vazados:
+        falhas.append(f"o portão da crítica abriu o texto não lido: {vazados} blocos")
+    # e a escolha sobrevive ao recarregamento, porque é um acordo, não um humor
+    pg.reload()
+    pg.wait_for_timeout(1200)
+    if not pg.evaluate("() => api.app.critica"):
+        falhas.append("o portão da crítica não foi lembrado depois de recarregar")
+    pg.evaluate("() => { api.app.critica = false; api.estado.gravar('leitor.critica', false); }")
+
     print("9. apagar a chave desliga a conversa")
     pg.evaluate("() => { window.__API.roteiro('normal'); }")
+    pg.evaluate("() => document.getElementById('btn-perguntar').click()")
+    pg.wait_for_timeout(300)
     pg.evaluate("() => document.getElementById('btn-chave').click()")
     pg.wait_for_timeout(200)
     pg.click("#apagar-chave")
