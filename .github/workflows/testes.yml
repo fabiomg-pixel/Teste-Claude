@@ -56,6 +56,10 @@ jobs:
         working-directory: epub_reader
         run: python3 test_github.py
 
+      - name: A conversa com a API, e a fronteira anti-spoiler na rede
+        working-directory: epub_reader
+        run: python3 test_conversa.py
+
       - name: O servidor perdendo o disco inteiro
         working-directory: epub_reader
         run: python3 test_disco_efemero.py

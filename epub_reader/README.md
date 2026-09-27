@@ -50,15 +50,38 @@ nada além da fronteira aparece no que se manda ao modelo.
 | | `app.py` (servidor) | `leitor-celular.html` (página solta) | `android/` (APK) |
 |---|---|---|---|
 | Onde roda | Flask + SQLite na sua máquina | Qualquer navegador, inclusive o do Android | Android 8 ou mais novo |
-| Conversa | Integrada, com resumos por capítulo | Monta o texto para você colar no app do Claude | Integrada, com a sua chave no aparelho |
+| Conversa | Integrada, com resumos por capítulo | Integrada, com a sua chave no navegador (copiar-e-colar como reserva) | Integrada, com a sua chave no aparelho |
 | Instalação | `python3 -m pip install -r requirements.txt` | Nenhuma — é um arquivo HTML (`python3 pagina.py`) | Instalar o APK |
 | Anti-spoiler | Recorte no servidor, limitado pelo progresso | Mesmo recorte, feito no aparelho | Mesmo recorte, feito no aparelho |
 | Sincronia | é o servidor | repositório privado do GitHub, ou o seu servidor | idem |
 
 `leitor-celular.html` é autossuficiente: abre EPUB (descompacta com
 `DecompressionStream`), pagina, guarda livro e anotações no navegador e monta o
-mesmo contexto anti-spoiler. Sozinho ele não fala com servidor nenhum — daí o
-copiar-e-colar.
+mesmo contexto anti-spoiler.
+
+### A conversa, sem copiar e colar
+
+Cole uma chave da API da Anthropic (`sk-ant-…`) no painel da chave 🔑 e a
+conversa acontece dentro do leitor, em streaming. A chave fica só naquele
+aparelho; a chamada sai do seu navegador direto para `api.anthropic.com`, sem
+passar por servidor meu nenhum. O uso é cobrado na sua conta da Anthropic.
+
+Isso exige o cabeçalho `anthropic-dangerous-direct-browser-access: true` — sem
+ele a API recusa todo pedido vindo de um navegador. O nome assusta de propósito,
+e com razão: ele só se defende quando a chave é de quem está usando a página,
+como aqui. Embutir a *sua* chave numa página que outros abrem seria o
+anti-padrão que o nome denuncia.
+
+São dois transportes para a mesma conversa — o Java do APK e o `fetch` do
+navegador — atrás de um único motor, então a tela, o histórico, a marcação e o
+tratamento de erro existem uma vez só. No artifact publicado não há transporte
+nenhum: o CSP bloqueia a chamada, e lá vale o copiar-e-colar, que continua
+inteiro como reserva em todos os casos.
+
+O modelo padrão é o `claude-opus-5`; Sonnet 5 e Haiku 4.5 ficam a um toque. Se um
+modelo recusar o pedido completo (a página pede raciocínio adaptativo, para ter o
+que mostrar enquanto a resposta não vem), o leitor desce para o pedido mínimo,
+responde, e lembra da escolha — em vez de deixar a conversa morta.
 
 O APK (veja [`android/`](../android/)) é uma casca de WebView em volta desse
 mesmo arquivo: a página detecta a ponte nativa e troca o copiar-e-colar por
@@ -426,7 +449,7 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E quatro testes de navegador, todos precisando do Playwright:
+E cinco testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
@@ -434,6 +457,7 @@ E quatro testes de navegador, todos precisando do Playwright:
 | `test_disco_efemero.py` | o servidor perde o disco inteiro e os aparelhos o reconstroem |
 | `test_como_artifact.py` | o leitor de pé nos dois ambientes: publicado e solto |
 | `test_github.py` | a biblioteca no GitHub e a tela de conexão, contra uma API falsa |
+| `test_conversa.py` | a conversa com a API da Anthropic — e a fronteira anti-spoiler agora que o recorte atravessa a rede |
 
 O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
 usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
@@ -467,6 +491,7 @@ python3 test_sincronia_navegador.py
 python3 test_disco_efemero.py
 python3 test_como_artifact.py
 python3 test_github.py
+python3 test_conversa.py
 ```
 
 Tudo isso roda a cada empurrão, em
@@ -516,6 +541,8 @@ epub_reader/
 ├── test_como_artifact.py  # o leitor de pé publicado e solto
 ├── github-falso.js   # um GitHub de mentira, do tamanho do que o leitor usa
 ├── test_github.py    # a biblioteca no repositório e a tela de conexão
+├── anthropic-falso.js # a API da Anthropic de mentira, com eventos em pedaços
+├── test_conversa.py  # a conversa dentro do leitor, e o que não pode vazar
 ├── livro_de_capa.py  # gera um EPUB que começa pela capa, como os de editora
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem

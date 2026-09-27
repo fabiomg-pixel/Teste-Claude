@@ -570,7 +570,12 @@
 
   .painel-chave { padding: .3rem .3rem 1rem; border-bottom: 1px solid var(--linha); margin-bottom: .6rem; }
 
-  /* conversa (só dentro do app, onde a chamada à API é possível) */
+  /* o resumo do raciocínio enquanto a resposta não vem, e as notas de rodapé
+     de um balão: mesma tinta apagada, para não competir com a resposta */
+  .pensamento { display: block; font-size: .82em; font-style: italic; opacity: .62;
+                margin-top: .35rem; }
+
+  /* conversa (dentro do app ou com a chave no navegador) */
   .conversa { display: flex; flex-direction: column; gap: .8rem; padding: .3rem .1rem .8rem; }
 
   .fala { font-size: .9rem; line-height: 1.55; }
@@ -851,10 +856,12 @@
     <div class="painel-chave oculto" id="painel-chave">
       <p class="rotulo">Chave da API</p>
       <p class="vazio" style="padding:.3rem 0 .6rem">
-        Para conversar dentro do app, cole uma chave da API da Anthropic
-        (<span class="mono">sk-ant-…</span>). Ela fica guardada só neste
-        aparelho, na área privada do app, e vai direto para a API — não passa
-        por nenhum servidor meu.
+        Cole uma chave da API da Anthropic (<span class="mono">sk-ant-…</span>)
+        para conversar aqui dentro, sem copiar e colar.
+        <span id="onde-mora-chave"></span>
+        A chamada vai do seu aparelho direto para <span class="mono">api.anthropic.com</span> —
+        não passa por nenhum servidor meu. Uma chave se cria em
+        <span class="mono">console.anthropic.com</span>, e o uso é cobrado por lá.
       </p>
       <input type="password" class="campo" id="campo-chave" placeholder="sk-ant-…" autocomplete="off" style="min-height:0">
       <div class="fileira" style="margin:.6rem 0">
@@ -891,10 +898,11 @@
     </details>
 
     <p class="vazio" id="explicacao-web">
-      A página não fala com nenhum servidor — o CSP do artifact bloqueia isso, e
-      de todo modo a chave da API não deve viver dentro de uma página. O texto
-      copiado já carrega as regras anti-spoiler no topo, então a conversa no app
-      do Claude segue a mesma fronteira.
+      Esta cópia da página é a publicada como artifact, e a política de segurança
+      dela bloqueia qualquer chamada à API. O texto copiado já carrega as regras
+      anti-spoiler no topo, então a conversa no app do Claude segue a mesma
+      fronteira. Para conversar aqui dentro, abra o leitor pelo endereço do
+      GitHub Pages ou use o aplicativo Android.
     </p>
     <p class="vazio oculto" id="explicacao-app">
       A pergunta vai direto do aparelho para a API da Anthropic, com a sua
@@ -969,7 +977,12 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 12;
+  const VERSAO = 13;
+
+  /* Dentro do artifact publicado a política de segurança bloqueia toda
+     requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
+     bandeira é lida em três lugares, e por isso nasce aqui. */
+  const noArtifact = !!window.claude;
 
   /* Ligar evento por id, tolerando a ausência. Um único elemento faltante
      lançava um TypeError que interrompia a ligação de TODOS os eventos
@@ -2278,17 +2291,179 @@ setTimeout(function () {
   }
 
   /* ================================================================== *
-   * 5b. Modo aplicativo — conversa de verdade
+   * 5b. A conversa de verdade, sem copiar e colar
    *
-   * Dentro do APK existe uma ponte nativa (window.Ponte): a chamada à API
-   * acontece em Java, com a chave guardada na área privada do app, e as
-   * respostas voltam em pedaços por window.__ponte. Na web esta seção fica
-   * inteiramente desligada e vale o copiar-e-colar.
+   * Dois transportes para a mesma conversa. No APK existe uma ponte nativa
+   * (window.Ponte) e a chamada acontece em Java, com a chave na área privada
+   * do app. Num navegador comum a página chama a API da Anthropic ela mesma,
+   * com a chave guardada no aparelho. Só no artifact publicado não há como:
+   * o CSP bloqueia, e aí vale o copiar-e-colar.
    * ================================================================== */
 
   const nativo = !!(window.Ponte && window.Ponte.perguntar);
   const conversa = [];
   let emCurso = null;
+
+  /* ---------------------------------------------------- os dois transportes
+
+     A conversa é a mesma nos dois casos: uma pergunta sai, pedaços de resposta
+     voltam por window.__ponte. O que muda é só quem faz a chamada — o Java do
+     APK, ou o próprio navegador. Por isso isto é um motor com duas
+     implementações, e não duas conversas: a tela, o histórico, a marcação e o
+     tratamento de erro existem uma vez só. */
+
+  const motorNativo = {
+    temChave: () => window.Ponte.temChave(),
+    modelo: () => window.Ponte.modelo(),
+    salvarChave: (c) => window.Ponte.salvarChave(c),
+    apagarChave: () => window.Ponte.apagarChave(),
+    salvarModelo: (m) => window.Ponte.salvarModelo(m),
+    perguntar: (id, sistema, mensagens) =>
+      window.Ponte.perguntar(id, sistema, JSON.stringify(mensagens)),
+  };
+
+  const API_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
+  const MODELO_PADRAO = 'claude-opus-5';
+  const TETO_RESPOSTA = 4096;
+
+  /* Lê uma resposta em Server-Sent Events. Um pedaço da rede não respeita
+     fronteira de evento: pode cortar no meio de um JSON, e emendar às cegas
+     produz erro de parse em resposta longa — justamente as que interessam. */
+  async function correnteSSE(resposta, aoEvento) {
+    const leitor = resposta.body.getReader();
+    const decodificador = new TextDecoder();
+    let resto = '';
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      resto = (resto + decodificador.decode(value, { stream: true })).replace(/\r\n/g, '\n');
+      let corte;
+      while ((corte = resto.indexOf('\n\n')) >= 0) {
+        const bruto = resto.slice(0, corte);
+        resto = resto.slice(corte + 2);
+        const linha = bruto.split('\n').find((l) => l.startsWith('data:'));
+        if (!linha) continue;
+        let evento;
+        try { evento = JSON.parse(linha.slice(5).trim()); } catch (e) { continue; }
+        aoEvento(evento);
+      }
+    }
+  }
+
+  async function motivoDoErro(resposta) {
+    let detalhe = '';
+    try {
+      const corpo = await resposta.json();
+      detalhe = (corpo.error && corpo.error.message) || '';
+    } catch (e) { /* sem corpo */ }
+    if (resposta.status === 401) {
+      return 'A Anthropic recusou a chave. Confira se ela está inteira e ativa.';
+    }
+    if (resposta.status === 400 && /credit|balance/i.test(detalhe)) {
+      return 'A conta da API está sem crédito. Recarregue em console.anthropic.com.';
+    }
+    if (resposta.status === 429) {
+      return 'Limite de uso da sua conta atingido. Tente daqui a pouco.';
+    }
+    if (resposta.status === 529 || resposta.status >= 500) {
+      return 'A API está sobrecarregada agora. Tente de novo em instantes.';
+    }
+    return 'A API respondeu ' + resposta.status + (detalhe ? ': ' + detalhe : '');
+  }
+
+  const motorNavegador = {
+    get ficha() {
+      return estado.ler('leitor.anthropic', { chave: '', modelo: '', pedido: 'completo' });
+    },
+    set ficha(v) { estado.gravar('leitor.anthropic', v); },
+    mudar(campo, valor) { const f = this.ficha; f[campo] = valor; this.ficha = f; },
+
+    temChave() { return !!this.ficha.chave; },
+    modelo() { return this.ficha.modelo || MODELO_PADRAO; },
+    salvarChave(c) { this.mudar('chave', c); },
+    apagarChave() { this.mudar('chave', ''); },
+    salvarModelo(m) { this.mudar('modelo', m); },
+
+    /* Nunca rejeita: a conversa inteira reporta falha por __ponte.erro, e uma
+       promessa rejeitada aqui não seria vista por ninguém — o balão ficaria
+       «pensando» para sempre. */
+    async perguntar(id, sistema, mensagens) {
+      const ficha = this.ficha;
+      let completo = ficha.pedido !== 'simples';
+      const corpo = () => {
+        const c = {
+          model: this.modelo(),
+          max_tokens: TETO_RESPOSTA,
+          system: sistema,
+          messages: mensagens,
+          stream: true,
+        };
+        if (completo) {
+          /* Pensar ajuda numa pergunta sobre um livro, e o resumo do raciocínio
+             dá o que mostrar enquanto o texto não vem — sem ele a espera é uma
+             tela parada. */
+          c.thinking = { type: 'adaptive', display: 'summarized' };
+          c.fallbacks = 'default';
+        }
+        return JSON.stringify(c);
+      };
+      const cabecalhos = () => {
+        const h = {
+          'content-type': 'application/json',
+          'x-api-key': ficha.chave,
+          'anthropic-version': '2023-06-01',
+          /* Sem este cabeçalho a API recusa qualquer pedido vindo de um
+             navegador. O nome assusta de propósito, e com razão: ele só se
+             defende quando a chave é de quem está usando a página e mora no
+             aparelho dela. É o nosso caso — e é por isso que a chave nunca
+             entra no repositório nem em lugar algum que eu escreva. */
+          'anthropic-dangerous-direct-browser-access': 'true',
+        };
+        if (completo) h['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+        return h;
+      };
+
+      try {
+        let resposta = await fetch(API_ANTHROPIC,
+          { method: 'POST', headers: cabecalhos(), body: corpo() });
+
+        /* Um 400 no pedido completo quase sempre é um parâmetro que este modelo
+           ou esta conta não aceitam. Deixar a conversa morta por causa disso
+           seria o pior desfecho: desce para o pedido mínimo, e lembra — senão
+           tentaria o caminho errado a cada pergunta. */
+        if (resposta.status === 400 && completo) {
+          completo = false;
+          this.mudar('pedido', 'simples');
+          resposta = await fetch(API_ANTHROPIC,
+            { method: 'POST', headers: cabecalhos(), body: corpo() });
+        }
+        if (!resposta.ok) throw new Error(await motivoDoErro(resposta));
+
+        let motivo = null;
+        await correnteSSE(resposta, (ev) => {
+          if (ev.type === 'content_block_delta' && ev.delta) {
+            if (ev.delta.type === 'text_delta') window.__ponte.delta(id, ev.delta.text);
+            else if (ev.delta.type === 'thinking_delta') window.__ponte.pensando(id, ev.delta.thinking);
+          } else if (ev.type === 'message_delta' && ev.delta) {
+            motivo = ev.delta.stop_reason || motivo;
+          } else if (ev.type === 'error') {
+            throw new Error((ev.error && ev.error.message) || 'a API interrompeu a resposta');
+          }
+        });
+        window.__ponte.fim(id, motivo);
+      } catch (erro) {
+        /* Uma falha de rede no navegador vem sem detalhe nenhum («Load failed»,
+           «Failed to fetch»), e a causa mais comum é estar sem conexão. */
+        const cru = (erro && erro.message) || String(erro);
+        window.__ponte.erro(id, /load failed|failed to fetch|networkerror/i.test(cru)
+          ? 'Não alcancei a API da Anthropic. Confira a conexão.'
+          : cru);
+      }
+    },
+  };
+
+  /* No artifact não há motor: o CSP bloqueia a chamada, e resta copiar e colar. */
+  const motor = nativo ? motorNativo : (noArtifact ? null : motorNavegador);
 
   function marcaLeve(fonte) {
     const linhas = escapar(fonte).split('\n');
@@ -2330,18 +2505,18 @@ setTimeout(function () {
   }
 
   function atualizarChave() {
-    if (!nativo) return;
-    const tem = window.Ponte.temChave();
+    if (!motor) return;
+    const tem = motor.temChave();
     $('painel-chave').classList.toggle('oculto', tem);
     $('apagar-chave').classList.toggle('oculto', !tem);
     $('enviar').disabled = !tem;
     $('enviar').style.opacity = tem ? '1' : '.5';
-    marcarEscolhas('[data-modelo]', 'modelo', window.Ponte.modelo());
+    marcarEscolhas('[data-modelo]', 'modelo', motor.modelo());
   }
 
-  function enviarNativo() {
+  function enviarPergunta() {
     if (!app.livro) return;
-    if (!window.Ponte.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
+    if (!motor.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
     if (emCurso) { aviso('Espere a resposta terminar.'); return; }
 
     const pedido = montarPedido();
@@ -2367,7 +2542,7 @@ setTimeout(function () {
     atualizarPrevia();
 
     try {
-      window.Ponte.perguntar(emCurso.id, pedido.sistema, JSON.stringify(mensagens));
+      motor.perguntar(emCurso.id, pedido.sistema, mensagens);
     } catch (e) {
       emCurso.balao.classList.remove('pensando');
       emCurso.balao.className = 'fala erro';
@@ -2384,11 +2559,35 @@ setTimeout(function () {
       emCurso.balao.innerHTML = marcaLeve(emCurso.texto);
       rolarConversa();
     },
-    fim(id) {
+    /* O resumo do raciocínio, enquanto a resposta não começa. Some assim que
+       chega texto de verdade: é andaime de espera, não conteúdo. */
+    pensando(id, texto) {
+      if (!emCurso || emCurso.id !== id || emCurso.texto) return;
+      emCurso.pensamento = ((emCurso.pensamento || '') + texto).slice(-500);
+      emCurso.balao.classList.remove('pensando');
+      emCurso.balao.innerHTML = '<span class="pensamento">' +
+        escapar(emCurso.pensamento) + '</span>';
+      rolarConversa();
+    },
+    fim(id, motivo) {
       if (!emCurso || emCurso.id !== id) return;
       emCurso.balao.classList.remove('pensando');
-      if (!emCurso.texto.trim()) { emCurso.balao.className = 'fala erro'; emCurso.balao.textContent = 'A resposta veio vazia.'; }
-      else conversa.push({ papel: 'assistant', texto: emCurso.texto });
+      if (motivo === 'refusal') {
+        emCurso.balao.className = 'fala erro';
+        emCurso.balao.textContent = 'O modelo recusou responder a este pedido.';
+      } else if (!emCurso.texto.trim()) {
+        emCurso.balao.className = 'fala erro';
+        emCurso.balao.textContent = 'A resposta veio vazia.';
+      } else {
+        emCurso.balao.innerHTML = marcaLeve(emCurso.texto);
+        conversa.push({ papel: 'assistant', texto: emCurso.texto });
+        // cortada no teto: melhor dizer do que deixar a frase pendurada
+        if (motivo === 'max_tokens') {
+          emCurso.balao.insertAdjacentHTML('beforeend',
+            '<span class="pensamento">— a resposta bateu no limite de tamanho e '
+            + 'parou aqui. Pergunte «continue» para o resto.</span>');
+        }
+      }
       emCurso = null;
       rolarConversa();
     },
@@ -2410,8 +2609,8 @@ setTimeout(function () {
     return false;
   };
 
-  function ligarModoNativo() {
-    if (!nativo) return;
+  function ligarConversa() {
+    if (!motor) return;                       // no artifact resta copiar e colar
     $('btn-chave').classList.remove('oculto');
     $('enviar').classList.remove('oculto');
     $('copiar').classList.add('secundaria');
@@ -2419,34 +2618,45 @@ setTimeout(function () {
     $('explicacao-web').classList.add('oculto');
     $('explicacao-app').classList.remove('oculto');
     $('conversa').classList.remove('oculto');
+    // onde a chave mora muda com o transporte, e é isso que a pessoa precisa saber
+    $('onde-mora-chave').textContent = nativo
+      ? 'Ela fica na área privada do aplicativo, neste aparelho.'
+      : 'Ela fica só neste navegador, neste aparelho — não vai para o '
+        + 'repositório nem para servidor nenhum.';
 
     ao('btn-chave', 'click', () => {
       const painel = $('painel-chave');
       painel.classList.toggle('oculto');
       if (!painel.classList.contains('oculto')) {
-        $('apagar-chave').classList.toggle('oculto', !window.Ponte.temChave());
-        marcarEscolhas('[data-modelo]', 'modelo', window.Ponte.modelo());
+        $('apagar-chave').classList.toggle('oculto', !motor.temChave());
+        marcarEscolhas('[data-modelo]', 'modelo', motor.modelo());
       }
     });
     ao('salvar-chave', 'click', () => {
       const chave = $('campo-chave').value.trim();
       if (!chave) { aviso('Cole a chave primeiro.'); return; }
-      window.Ponte.salvarChave(chave);
+      /* Conferir a forma agora evita uma falha de autenticação confusa na
+         primeira pergunta — e pega o caso de colar a chave errada. */
+      if (!/^sk-ant-/.test(chave)) {
+        aviso('Isto não parece uma chave da Anthropic: elas começam com sk-ant-.');
+        return;
+      }
+      motor.salvarChave(chave);
       $('campo-chave').value = '';
       atualizarChave();
       aviso('Chave guardada neste aparelho');
     });
     ao('apagar-chave', 'click', () => {
-      window.Ponte.apagarChave();
+      motor.apagarChave();
       atualizarChave();
       aviso('Chave apagada');
     });
     document.querySelectorAll('[data-modelo]').forEach((b) => b.addEventListener('click', () => {
-      window.Ponte.salvarModelo(b.dataset.modelo);
+      motor.salvarModelo(b.dataset.modelo);
       marcarEscolhas('[data-modelo]', 'modelo', b.dataset.modelo);
       aviso('Modelo: ' + b.textContent);
     }));
-    ao('enviar', 'click', enviarNativo);
+    ao('enviar', 'click', enviarPergunta);
     atualizarChave();
   }
 
@@ -3280,7 +3490,6 @@ setTimeout(function () {
   /* Na página publicada como artifact o CSP bloqueia qualquer requisição a
      outro servidor — melhor dizer isso do que deixar a pessoa preencher os
      campos e receber uma falha de rede sem explicação. */
-  const noArtifact = !!window.claude;
   if (noArtifact) {
     /* Esconder, e nunca apagar: trocar o innerHTML deste painel destruía o
        #salvar-sync, e a ligação de evento logo abaixo morria com um TypeError
@@ -3568,7 +3777,7 @@ setTimeout(function () {
   });
 
   aplicarAjustes();
-  ligarModoNativo();
+  ligarConversa();
   marcarSincronia('');
   if (sincronia.ligada) setTimeout(() => sincronizarTudo(true), 600);
 
@@ -3609,6 +3818,7 @@ setTimeout(function () {
   if (typeof window.__leitorTestes === 'function') {
     window.__leitorTestes({ github, biblioteca, sincronia, sincronizarTudo,
                             mesclarEstados, inflarCru, impressaoDigital,
+                            motorNavegador, montarPedido, app,
                             estado, guarda, VERSAO });
   }
 
