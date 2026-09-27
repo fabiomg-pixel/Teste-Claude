@@ -234,13 +234,18 @@ with sync_playwright() as p:
     print("8b. o portão da crítica muda o acordo, e só ele")
     pg.evaluate("() => { window.__API.roteiro('normal'); window.__API.limpar(); }")
     # desligado: o padrão. Conhecimento externo sobre a obra é vedado.
+    # o system é um vetor de blocos (o último leva a marca de cache): aqui o
+    # assunto é o TEXTO das regras, não onde ele está — a divisão é assunto do
+    # test_extras
+    junta = """() => { const s = window.__API.ultimo().corpo.system;
+      return Array.isArray(s) ? s.map(b => b.text).join('\\n') : s; }"""
     perguntar(pg, "o que a crítica diz deste livro?")
-    estrito = pg.evaluate("() => window.__API.ultimo().corpo.system")
+    estrito = pg.evaluate(junta)
     pg.evaluate("() => document.getElementById('abrir-critica').click()")
     pg.wait_for_timeout(300)
     pg.evaluate("() => window.__API.limpar()")
     perguntar(pg, "o que a crítica diz deste livro?")
-    aberto = pg.evaluate("() => window.__API.ultimo().corpo.system")
+    aberto = pg.evaluate(junta)
     print("   desligado diz «vedado»:", "é vedado" in estrito)
     print("   ligado diz «liberado»:", "liberado" in aberto)
     if "é vedado" not in estrito:

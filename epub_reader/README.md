@@ -166,6 +166,59 @@ próprio**. Duas consequências:
 A regra que vai ao modelo é explícita: a REGRA ABSOLUTA vale para o volume que
 está sendo lido agora, não para os que já terminaram.
 
+### O histórico que não morre
+
+A conversa vivia na aba: fechar o leitor apagava três semanas de leitura
+conversada. O que se perde aí não é o resumo do livro — os resumos por capítulo
+já dão isso — é **o que você pensou** sobre ele.
+
+Agora cada fala tem id e hora, e vai para `conversa/<impressão>.json` no
+repositório. A mescla soma as falas, para que dois aparelhos que conversaram
+offline não escolham uma das versões. Somar exige lápide: «começar uma conversa
+nova» grava uma marca de `limpoEm`, e falas anteriores a ela são descartadas na
+mescla — sem isso, apagar num aparelho seria desfeito pelo outro na sincronização
+seguinte.
+
+### O cache de prompt
+
+O cache da API é por **prefixo**: o que vem antes do ponto de corte custa 0,05x na
+releitura, e qualquer byte que mude ali invalida tudo depois. Então o pedido é
+dividido por estabilidade, não por assunto:
+
+| No `system` (cacheável) | Na mensagem (volátil) |
+|---|---|
+| regras, título e autoria | onde estou agora, e a porcentagem |
+| lista de capítulos lidos | trechos achados pela busca |
+| resumos de capítulo | o que acabei de ler, na íntegra |
+| volumes anteriores da série | o trecho selecionado e o pedido |
+
+Pôr a porcentagem de leitura no prefixo seria o erro clássico: ela muda a cada
+página virada e mataria o cache sem erro nenhum — só a conta no fim do mês
+denunciaria. O teste compara o prefixo de duas perguntas seguidas byte a byte, e
+confere que andar no texto não o altera. A linha do custo mostra quanto do
+contexto veio do cache; se isso ficar em 0% depois de várias perguntas no mesmo
+livro, algo volátil entrou no prefixo.
+
+### O sentido de uma palavra
+
+Selecione uma palavra ou expressão curta e toque em **Sentido**: um cartão diz o
+que ela significa *naquela frase* — a acepção que vale ali, não a lista de
+acepções. Manda a oração em volta, não o bloco: o contexto de uma palavra é a
+frase, e quatro parágrafos custam mais e ajudam menos. Usa Haiku 4.5, e o pedido
+inteiro fica abaixo de 1 KB.
+
+O cartão fecha ao virar a página ou abrir qualquer painel. Uma ajuda de meio
+segundo que fica aberta sobre o texto até alguém fechá-la à mão é um estorvo.
+
+### Dos destaques para fora
+
+Cada destaque na lista de anotações tem um **perguntar**, que abre a conversa já
+com o trecho em mãos. E **Exportar** monta um Markdown com título, posição,
+destaques agrupados por capítulo, as notas, e a conversa — para a área de
+transferência, para um arquivo, e para `notas/<impressão>.md` no repositório.
+Ler e escrever são o mesmo trabalho em dois tempos; um destaque que só existe
+dentro do leitor não vira nada.
+
 ### O que isto custa, e dois limites
 
 A folha de perguntar mostra o custo da última pergunta e o acumulado do mês, por
@@ -547,7 +600,7 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E sete testes de navegador, todos precisando do Playwright:
+E oito testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
@@ -558,6 +611,7 @@ E sete testes de navegador, todos precisando do Playwright:
 | `test_conversa.py` | a conversa com a API da Anthropic — e a fronteira anti-spoiler agora que o recorte atravessa a rede |
 | `test_memoria.py` | os resumos por capítulo, e o que a memória não pode deixar entrar |
 | `test_serie.py` | trilogias — três fronteiras ao mesmo tempo, uma por volume |
+| `test_extras.py` | o prefixo do cache byte a byte, o histórico, a lápide, o sentido, os destaques e a exportação |
 
 O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
 usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
@@ -594,6 +648,7 @@ python3 test_github.py
 python3 test_conversa.py
 python3 test_memoria.py
 python3 test_serie.py
+python3 test_extras.py
 ```
 
 Tudo isso roda a cada empurrão, em
@@ -645,6 +700,9 @@ epub_reader/
 ├── test_github.py    # a biblioteca no repositório e a tela de conexão
 ├── anthropic-falso.js # a API da Anthropic de mentira, com eventos em pedaços
 ├── test_conversa.py  # a conversa dentro do leitor, e o que não pode vazar
+├── test_memoria.py   # os resumos por capítulo
+├── test_serie.py     # trilogias, uma fronteira por volume
+├── test_extras.py    # cache, histórico, sentido, destaques, exportação
 ├── livro_de_capa.py  # gera um EPUB que começa pela capa, como os de editora
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem

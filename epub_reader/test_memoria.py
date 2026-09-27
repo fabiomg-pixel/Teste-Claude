@@ -93,12 +93,14 @@ with sync_playwright() as p:
     print("3. os resumos entram no contexto, e nada além deles")
     pg.evaluate("() => document.getElementById('btn-perguntar').click()")
     pg.wait_for_timeout(400)
+    # o prompt inteiro: as regras e o contexto estável vão no system, o resto na
+    # mensagem, e aqui o que importa é o conjunto
     dados = pg.evaluate("""() => {
       const p = api.montarPedido();
-      return {mensagem: p.mensagem,
+      return {prompt: p.sistema + '\\n' + p.mensagem,
               naoLidos: api.app.livro.blocos.filter(b => b.i > api.app.fronteira).map(b => b.t)};
     }""")
-    msg = dados["mensagem"]
+    msg = dados["prompt"]
     print("   tem a seção de resumos:", "O que aconteceu em cada capítulo" in msg)
     if "O que aconteceu em cada capítulo" not in msg:
         falhas.append("os resumos não entraram no contexto")

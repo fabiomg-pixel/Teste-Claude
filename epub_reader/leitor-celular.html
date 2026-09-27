@@ -627,6 +627,20 @@
   .selecao .cor[data-cor="mare"] { background: var(--marca-mare); }
   .selecao .cor[data-cor="rosa"] { background: var(--marca-rosa); }
   .selecao .risco { width: 1px; height: 1.3rem; background: var(--linha); margin: 0 .15rem; }
+
+  .cartao-sentido {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(1.1rem + env(safe-area-inset-bottom));
+    width: min(30rem, calc(100vw - 1.6rem));
+    z-index: 60; padding: .75rem .9rem;
+    background: var(--papel); border: 1px solid var(--linha); border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.22);
+    font-size: .9rem; line-height: 1.5;
+  }
+  .cartao-sentido .cabeca { display: flex; align-items: center; gap: .5rem; }
+  .cartao-sentido .cabeca b { flex: 1; font-size: 1rem; }
+  .cartao-sentido p { margin: .35rem 0 .1rem; color: var(--meia-tinta); }
+  .cartao-sentido .verbo { margin-top: .5rem; }
   .selecao .verbo { font-size: .8rem; padding: .35rem .6rem; border-radius: 999px; }
   .selecao .verbo:active { background: var(--papel); }
 
@@ -790,6 +804,7 @@
   <div class="puxador"><i></i></div>
   <header>
     <h2>Sumário</h2>
+    <button class="ficha oculto" id="exportar-notas">Exportar</button>
     <button class="ficha" id="ver-anotacoes">Anotações</button>
     <button class="icone" data-fechar aria-label="Fechar">✕</button>
   </header>
@@ -905,6 +920,8 @@
     </div>
 
     <div class="conversa oculto" id="conversa"></div>
+    <button class="acao secundaria oculto" id="limpar-conversa"
+            style="margin:.2rem .3rem .4rem">Começar uma conversa nova</button>
 
     <div class="painel-chave oculto" id="painel-teto">
       <p class="rotulo">Acima do seu limite</p>
@@ -985,8 +1002,21 @@
   <button class="cor" data-cor="mare" aria-label="Destacar em azul"></button>
   <button class="cor" data-cor="rosa" aria-label="Destacar em rosa"></button>
   <span class="risco"></span>
+  <button class="verbo oculto" id="sel-sentido">Sentido</button>
   <button class="verbo" id="sel-perguntar">Perguntar</button>
   <button class="verbo" id="sel-copiar">Copiar</button>
+</div>
+
+<!-- O sentido de uma palavra na frase em que ela está. Um cartão e não a folha
+     de conversa: interromper a leitura para abrir um painel só para saber o que
+     «alqueire» quer dizer é atrito demais para a dúvida que é. -->
+<div class="cartao-sentido oculto" id="cartao-sentido" role="status" aria-live="polite">
+  <div class="cabeca">
+    <b id="sentido-termo"></b>
+    <button class="icone" id="sentido-fechar" aria-label="Fechar">✕</button>
+  </div>
+  <p id="sentido-texto"></p>
+  <button class="verbo" id="sentido-mais">Perguntar mais sobre isto</button>
 </div>
 
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
@@ -1044,7 +1074,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 18;
+  const VERSAO = 19;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -1705,6 +1735,7 @@ setTimeout(function () {
     critica: estado.ler('leitor.critica', false),
     incorporarSerie: estado.ler('leitor.serie.incorporar', true),
     serie: null,         // { nome, volume, anteriores: [...] } — ver prepararSerie
+    conversaLimpaEm: 0,  // lápide: falas anteriores a isto estão apagadas
     resumos: {},         // { <índice do capítulo>: {ate, texto, em} }
   };
 
@@ -1921,6 +1952,7 @@ setTimeout(function () {
   }
 
   function proxima() {
+    fecharSentido();
     if (app.ajustes.modo === 'rolagem') {
       janela().scrollBy({ top: janela().clientHeight * 0.88, behavior: 'smooth' });
       setTimeout(atualizarBlocoAtual, 420);
@@ -1932,6 +1964,7 @@ setTimeout(function () {
   }
 
   function anterior() {
+    fecharSentido();
     if (app.ajustes.modo === 'rolagem') {
       janela().scrollBy({ top: -janela().clientHeight * 0.88, behavior: 'smooth' });
       setTimeout(atualizarBlocoAtual, 420);
@@ -2105,6 +2138,10 @@ setTimeout(function () {
   /* ------------------------------------------------------------ folhas */
 
   function abrirFolha(id) {
+    /* O cartão do sentido é uma resposta a uma dúvida de meio segundo. Deixá-lo
+       aberto sobre o texto até alguém fechá-lo à mão transforma uma ajuda num
+       estorvo — e ele intercepta os toques do que está embaixo. */
+    fecharSentido();
     document.querySelectorAll('.folha').forEach((f) => {
       f.classList.toggle('aberta', f.id === id);
       f.setAttribute('aria-hidden', String(f.id !== id));
@@ -2160,16 +2197,204 @@ setTimeout(function () {
       const capitulo = capituloDoBloco(m.bloco);
       const el = document.createElement('div');
       el.className = 'anotacao';
+      const miudo = 'padding:.15rem .5rem;font-size:.72rem';
       el.innerHTML = '<div class="trecho" style="border-color:var(--marca-' + m.cor + ')">' + escapar(m.texto) + '</div>'
         + '<div class="onde"><span>' + escapar(capitulo ? capitulo.titulo : '') + '</span>'
-        + '<button class="ficha" data-apagar="' + m.id + '" style="padding:.15rem .5rem;font-size:.72rem">apagar</button></div>';
+        + '<button class="ficha" data-perguntar="' + m.id + '" style="' + miudo + '">perguntar</button>'
+        + '<button class="ficha" data-apagar="' + m.id + '" style="' + miudo + '">apagar</button></div>';
       el.addEventListener('click', (ev) => {
         if (ev.target.dataset.apagar) { removerMarca(ev.target.dataset.apagar); return; }
+        if (ev.target.dataset.perguntar) {
+          fecharFolhas();
+          levarSelecaoParaPergunta(null, m.texto);
+          return;
+        }
         irParaBloco(m.bloco, true);
         fecharFolhas();
       });
       alvo.appendChild(el);
     });
+  }
+
+  /* --------------------------------------- os destaques saem em Markdown
+
+     Ler e escrever são o mesmo trabalho em dois tempos. Um destaque que só
+     existe dentro do leitor é um destaque que não vai virar nada: o formato que
+     atravessa para o Obsidian, para um caderno de notas ou para um texto seu é
+     Markdown, e é o mínimo que se deve a quem destacou. */
+  function notasEmMarkdown() {
+    if (!app.livro) return '';
+    const vivas = marcasVivas().slice().sort((a, b) => a.bloco - b.bloco);
+    const capituloAtual = capituloDoBloco(app.fronteira);
+    const pct = ((app.fronteira + 1) / Math.max(app.livro.totalBlocos, 1) * 100).toFixed(0);
+
+    const linhas = ['# ' + (app.livro.meta.titulo || 'Sem título')];
+    if (app.livro.meta.autor) linhas.push('', '*' + app.livro.meta.autor + '*');
+    if (app.serie) {
+      linhas.push('', 'Série «' + app.serie.nome + '», volume ' + app.serie.volume + '.');
+    }
+    linhas.push('', 'Lido até «' + (capituloAtual ? capituloAtual.titulo : '?') + '» — '
+      + pct + '% do livro. ' + vivas.length
+      + (vivas.length === 1 ? ' destaque.' : ' destaques.'),
+      '', '*Exportado do leitor em ' + new Date().toLocaleString('pt-BR') + '.*');
+
+    let capituloAnterior = null;
+    vivas.forEach((m) => {
+      const c = capituloDoBloco(m.bloco);
+      const titulo = c ? c.titulo : 'sem capítulo';
+      if (titulo !== capituloAnterior) {
+        linhas.push('', '## ' + titulo);
+        capituloAnterior = titulo;
+      }
+      linhas.push('', '> ' + m.texto.replace(/\n+/g, ' ').trim());
+      if (m.nota) linhas.push('', m.nota.trim());
+    });
+
+    if (conversa.length) {
+      linhas.push('', '## Conversa sobre o livro');
+      conversa.forEach((f) => {
+        linhas.push('', (f.papel === 'assistant' ? '**Claude:** ' : '**Eu:** ')
+          + f.texto.replace(/\n+/g, ' ').trim());
+      });
+    }
+    return linhas.join('\n') + '\n';
+  }
+
+  async function exportarNotas() {
+    if (!app.livro) return;
+    const texto = notasEmMarkdown();
+    const nome = (app.livro.meta.titulo || 'livro')
+      .replace(/[^\p{L}\p{N} .-]/gu, '').trim().slice(0, 60) || 'livro';
+
+    /* Três destinos, do mais provável ao menos, e nenhum deles obrigatório:
+       a área de transferência resolve o caso comum, o arquivo serve quando o
+       navegador não deixa copiar, e o repositório é o que atravessa aparelhos. */
+    let onde = [];
+    try {
+      await navigator.clipboard.writeText(texto);
+      onde.push('copiado');
+    } catch (e) { /* iframe ou navegador sem permissão */ }
+
+    try {
+      const url = URL.createObjectURL(new Blob([texto], { type: 'text/markdown' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nome + '.md';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      onde.push('baixado');
+    } catch (e) { /* sem download possível */ }
+
+    if (sincronia.modo === 'github') {
+      try {
+        const registro = await guarda.pegar(app.livro.id);
+        if (registro && registro.impressao) {
+          await biblioteca.gravarNotas(registro.impressao, texto);
+          onde.push('gravado em notas/ no repositório');
+        }
+      } catch (erro) {
+        aviso('Não gravei no repositório: ' + erro.message);
+      }
+    }
+
+    if (!onde.length) {
+      /* Nem copiar nem baixar: mostrar o texto é o último recurso honesto. */
+      const caixa = document.createElement('textarea');
+      caixa.className = 'copia-manual';
+      caixa.id = 'copia-manual';
+      caixa.value = texto;
+      caixa.readOnly = true;
+      const antigo = document.getElementById('copia-manual');
+      if (antigo) antigo.remove();
+      $('corpo-anotacoes').prepend(caixa);
+      caixa.select();
+      aviso('Selecione o texto e copie');
+      return;
+    }
+    aviso('Notas em Markdown: ' + onde.join(', '));
+  }
+
+  /* ------------------------------------------- o sentido de uma palavra
+
+     A dúvida mais comum ao ler é pequena: o que esta palavra quer dizer AQUI.
+     O verbete genérico de um dicionário resolve metade dos casos; o que resolve
+     o resto é a frase em volta, e é isso que um modelo pode fazer e um
+     dicionário não.
+
+     Barato de propósito: Haiku, resposta curta, um cartão em vez da folha de
+     conversa. Interromper a leitura para abrir um painel só para saber o que
+     «alqueire» significa é atrito maior do que a dúvida. */
+  const MODELO_SENTIDO = 'claude-haiku-4-5';
+
+  const REGRAS_SENTIDO = [
+    'Você explica palavras e expressões para quem está lendo um livro.',
+    '',
+    'Recebe um trecho e a frase em que ele aparece. Diga em UMA ou DUAS frases',
+    'curtas o que ele significa NAQUELE contexto — a acepção que vale ali, não a',
+    'lista de acepções. Se for nome próprio, diga o que é. Se for estrangeirismo',
+    'ou termo técnico, traduza e explique. Se for figura de linguagem, diga o que',
+    'ela faz ali.',
+    '',
+    'Português do Brasil. Sem preâmbulo, sem repetir a pergunta, sem aspas em',
+    'volta da resposta. Nada sobre o enredo além da frase que recebeu.',
+  ].join('\n');
+
+  let sentidoEmCurso = 0;
+
+  function fecharSentido() {
+    const cartao = $('cartao-sentido');
+    if (cartao) cartao.classList.add('oculto');
+    sentidoEmCurso = 0;
+  }
+
+  /* A frase em volta, e não o bloco inteiro: o contexto de uma palavra é a
+     oração, e mandar quatro parágrafos custa mais e ajuda menos. */
+  function fraseEmVolta(bloco, termo) {
+    const texto = bloco || '';
+    const onde = texto.indexOf(termo);
+    if (onde < 0) return texto.slice(0, 400);
+    const antes = Math.max(0, texto.lastIndexOf('.', onde - 1) + 1);
+    let depois = texto.indexOf('.', onde + termo.length);
+    depois = depois < 0 ? texto.length : depois + 1;
+    return texto.slice(antes, depois).trim() || texto.slice(0, 400);
+  }
+
+  async function pedirSentido() {
+    const termo = (app.selecionado || '').trim();
+    if (!termo || !app.livro) return;
+    if (!motor || !motor.resumir) { aviso('Isto precisa da chave da API no navegador.'); return; }
+    if (!motor.temChave()) { aviso('Cole uma chave da API em 💬 → 🔑.'); return; }
+
+    const t = tetos();
+    if (t.mes > 0 && contaDoMes().total >= t.mes) {
+      aviso('Limite de ' + emDinheiro(t.mes) + ' do mês atingido.');
+      return;
+    }
+
+    const bloco = app.livro.blocos.find((b) => b.i === app.bloco
+      && b.t && b.t.indexOf(termo) >= 0)
+      || app.livro.blocos.filter((b) => b.i <= app.fronteira)
+           .find((b) => b.t && b.t.indexOf(termo) >= 0);
+    const frase = fraseEmVolta(bloco ? bloco.t : '', termo);
+
+    const meu = Date.now();
+    sentidoEmCurso = meu;
+    $('sentido-termo').textContent = termo.length > 60 ? termo.slice(0, 60) + '…' : termo;
+    $('sentido-texto').textContent = 'procurando o sentido…';
+    $('cartao-sentido').classList.remove('oculto');
+    esconderSelecao();
+
+    try {
+      const saida = await motor.resumir(REGRAS_SENTIDO,
+        'Trecho: «' + termo + '»\n\nFrase em que aparece: ' + frase,
+        MODELO_SENTIDO, 300);
+      if (sentidoEmCurso !== meu) return;     // a pessoa já pediu outra coisa
+      $('sentido-texto').textContent = saida.texto;
+      contabilizar(MODELO_SENTIDO, saida.uso);
+    } catch (erro) {
+      if (sentidoEmCurso !== meu) return;
+      $('sentido-texto').textContent = erro.message || 'não consegui agora.';
+    }
   }
 
   /* ------------------------------------------------------ seleção */
@@ -2183,6 +2408,11 @@ setTimeout(function () {
     if (!fluxo().contains(faixa.commonAncestorContainer)) { esconderSelecao(); return; }
     const r = faixa.getBoundingClientRect();
     const barra = $('selecao');
+    /* «Sentido» só faz sentido com chave, e só para um trecho curto: pedir a
+       acepção de dois parágrafos não é uma pergunta de dicionário. */
+    const curto = selecao.toString().trim().length <= 60;
+    $('sel-sentido').classList.toggle('oculto',
+      !(motor && motor.resumir && motor.temChave() && curto));
     barra.classList.add('visivel');
     const largura = barra.offsetWidth;
     let x = r.left + r.width / 2 - largura / 2;
@@ -2296,42 +2526,61 @@ setTimeout(function () {
   /* Devolve o pedido em duas partes: as regras (que viram o system prompt no
      app) e a mensagem com o recorte do livro. A versão para copiar é apenas
      a junção das duas. */
+  /* Devolve o pedido em três partes, e a divisão não é estética.
+
+     O cache da API é por PREFIXO: o que vem antes do ponto de corte é cobrado a
+     0,05x na releitura, e qualquer byte que mude ali invalida tudo depois. Então
+     o que é grande e estável (regras, resumos de capítulo, volumes da série) vai
+     para o `system`, com a marca de cache no fim; e o que muda a cada pergunta
+     (onde estou agora, os trechos achados pela busca, o que acabei de ler, o
+     pedido) fica na mensagem, fora do cache.
+
+     Pôr a porcentagem de leitura no `system` seria o erro clássico: ela muda a
+     cada página virada e mataria o cache sem ninguém notar.
+
+     `sistema` é a junção plana, para o copiar-e-colar; `blocos` é o que vai à
+     API. As duas dizem o mesmo. */
   function montarPedido() {
     const daSerie = textoDaSerie();
-    const sistema = regras({ critica: app.critica, serie: daSerie.length > 0 });
-    if (!app.livro) return { sistema, mensagem: '', pergunta: '' };
+    const regrasTexto = regras({ critica: app.critica, serie: daSerie.length > 0 });
+    if (!app.livro) {
+      return { sistema: regrasTexto, blocos: [{ type: 'text', text: regrasTexto }],
+               mensagem: '', pergunta: '' };
+    }
     const pergunta = $('pergunta').value.trim();
     const tarefa = TAREFAS[app.modoPergunta] || '';
     const capituloAtual = capituloDoBloco(app.fronteira);
     const pct = ((app.fronteira + 1) / Math.max(app.livro.totalBlocos, 1) * 100).toFixed(0);
+    const lidos = app.livro.capitulos.filter(
+      (c) => c.primeiro <= app.fronteira && c.ultimo >= c.primeiro);
 
-    const lidos = app.livro.capitulos.filter((c) => c.primeiro <= app.fronteira && c.ultimo >= c.primeiro);
-    const partes = ['## O livro',
+    // ------------------------------------------- a parte estável (cacheável)
+    const fixo = ['## O livro',
       'Título: ' + (app.livro.meta.titulo || '(sem título)'),
       'Autoria: ' + (app.livro.meta.autor || 'desconhecida'),
-      '', '## Onde estou',
-      'Em «' + (capituloAtual ? capituloAtual.titulo : '?') + '» — capítulo ' +
-      ((capituloAtual ? capituloAtual.indice : 0) + 1) + ' de ' + app.livro.capitulos.length +
-      ', a ' + pct + '% do livro. Nada além deste ponto aparece abaixo.',
       '', '## Capítulos que já li'];
-
     lidos.forEach((c) => {
       const parcial = c.ultimo > app.fronteira ? ' (li só uma parte)' : '';
-      partes.push('- Cap. ' + (c.indice + 1) + ': ' + c.titulo + parcial);
+      fixo.push('- Cap. ' + (c.indice + 1) + ': ' + c.titulo + parcial);
     });
-
-    daSerie.forEach((l) => partes.push(l));
+    daSerie.forEach((l) => fixo.push(l));
 
     /* A memória longa. Sem ela o modelo só vê o fim do que foi lido, e um
        romance de trinta capítulos vira os três últimos. */
     const comResumo = lidos.filter((c) => app.resumos[c.indice]);
     if (comResumo.length) {
-      partes.push('', '## O que aconteceu em cada capítulo que já li');
+      fixo.push('', '## O que aconteceu em cada capítulo que já li');
       comResumo.forEach((c) => {
-        partes.push('### Cap. ' + (c.indice + 1) + ' — ' + (c.titulo || 'sem título'));
-        partes.push(app.resumos[c.indice].texto);
+        fixo.push('### Cap. ' + (c.indice + 1) + ' — ' + (c.titulo || 'sem título'));
+        fixo.push(app.resumos[c.indice].texto);
       });
     }
+
+    // -------------------------------------- a parte que muda a cada pergunta
+    const partes = ['## Onde estou',
+      'Em «' + (capituloAtual ? capituloAtual.titulo : '?') + '» — capítulo ' +
+      ((capituloAtual ? capituloAtual.indice : 0) + 1) + ' de ' + app.livro.capitulos.length +
+      ', a ' + pct + '% do livro. Nada além deste ponto aparece abaixo.'];
 
     const busca = [pergunta, app.selecionado].filter(Boolean).join(' ');
     const achados = busca ? trechosRelevantes(busca, 6) : [];
@@ -2361,7 +2610,16 @@ setTimeout(function () {
     if (pergunta) partes.push(pergunta);
     if (!tarefa && !pergunta) partes.push('Comente o que eu li até aqui.');
 
-    return { sistema, mensagem: partes.join('\n'), pergunta };
+    const contexto = fixo.join('\n');
+    const blocos = [
+      { type: 'text', text: regrasTexto },
+      /* A marca fica no último bloco estável: tudo daqui para trás entra no
+         cache. Um prefixo curto simplesmente não é cacheado, sem erro. */
+      { type: 'text', text: contexto, cache_control: { type: 'ephemeral' } },
+    ];
+
+    return { sistema: regrasTexto + '\n\n' + contexto, blocos,
+             mensagem: partes.join('\n'), pergunta };
   }
 
   function montarPacote() {
@@ -2494,8 +2752,64 @@ setTimeout(function () {
    * ================================================================== */
 
   const nativo = !!(window.Ponte && window.Ponte.perguntar);
-  const conversa = [];
+  let conversa = [];
   let emCurso = null;
+
+  /* ------------------------------------------- o histórico que não morre
+
+     A conversa vivia na aba: fechar o leitor apagava três semanas de leitura
+     conversada. E o que se perde não é o resumo do livro — isso os resumos por
+     capítulo já dão — é o que VOCÊ pensou sobre ele.
+
+     Cada fala ganha id e hora, porque a mescla entre aparelhos precisa de
+     identidade: dois aparelhos que conversaram offline têm de somar as falas,
+     não escolher uma das versões. */
+  const TETO_FALAS = 60;        // o arquivo no repositório não pode crescer sem fim
+
+  function chaveConversa(id) { return 'leitor.conversa.' + id; }
+
+  function novaFala(papel, texto) {
+    return { id: 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+             papel, texto, em: Date.now() / 1000 };
+  }
+
+  function guardarConversa() {
+    if (!app.livro) return;
+    if (conversa.length > TETO_FALAS) conversa = conversa.slice(-TETO_FALAS);
+    estado.gravar(chaveConversa(app.livro.id),
+                  { limpoEm: app.conversaLimpaEm || 0, falas: conversa });
+  }
+
+  function lerConversa(id) {
+    const guardado = estado.ler(chaveConversa(id), null);
+    // formato antigo: só o vetor de falas
+    if (Array.isArray(guardado)) return { limpoEm: 0, falas: guardado };
+    return { limpoEm: (guardado && guardado.limpoEm) || 0,
+             falas: (guardado && guardado.falas) || [] };
+  }
+
+  /* Some por união de falas, e por isso apagar precisa de lápide: uma lista
+     vazia mesclada com a do outro aparelho traria tudo de volta. A marca de
+     «limpo em» é o que faz apagar apagar em todo lugar — e ela só cresce, para
+     que a ordem em que os aparelhos sincronizam não mude o resultado. */
+  function mesclarConversas(a, b) {
+    a = a || {}; b = b || {};
+    const limpoEm = Math.max(a.limpoEm || 0, b.limpoEm || 0);
+    const porId = new Map();
+    [...(a.falas || []), ...(b.falas || [])].forEach((f) => {
+      if (f && f.id && f.texto && (f.em || 0) > limpoEm) porId.set(f.id, f);
+    });
+    const juntas = [...porId.values()].sort((x, y) => (x.em || 0) - (y.em || 0));
+    return { limpoEm, falas: juntas.slice(-TETO_FALAS) };
+  }
+
+  function redesenharConversa() {
+    const alvo = $('conversa');
+    if (!alvo) return;
+    alvo.innerHTML = '';
+    conversa.forEach((f) => desenharFala(f.papel === 'assistant' ? 'dele' : 'minha', f.texto));
+    $('limpar-conversa').classList.toggle('oculto', !conversa.length);
+  }
 
   /* ---------------------------------------------------- os dois transportes
 
@@ -2511,8 +2825,12 @@ setTimeout(function () {
     salvarChave: (c) => window.Ponte.salvarChave(c),
     apagarChave: () => window.Ponte.apagarChave(),
     salvarModelo: (m) => window.Ponte.salvarModelo(m),
+    /* O Java da ponte só conhece o system como texto. Achatar aqui é melhor do
+       que espalhar a diferença entre os dois transportes pelo resto do código. */
     perguntar: (id, sistema, mensagens) =>
-      window.Ponte.perguntar(id, sistema, JSON.stringify(mensagens)),
+      window.Ponte.perguntar(id,
+        Array.isArray(sistema) ? sistema.map((b) => b.text).join('\n\n') : sistema,
+        JSON.stringify(mensagens)),
   };
 
   const API_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
@@ -2815,7 +3133,8 @@ setTimeout(function () {
        (e porque o recorte atual já cobre tudo o que foi lido). */
     const mensagens = conversa.map((f) => ({ role: f.papel, content: f.texto }))
       .concat([{ role: 'user', content: pedido.mensagem }]);
-    conversa.push({ papel: 'user', texto: rotulo });
+    conversa.push(novaFala('user', rotulo));
+    guardarConversa();
 
     const balao = desenharFala('dele', '');
     balao.classList.add('pensando');
@@ -2826,7 +3145,7 @@ setTimeout(function () {
     atualizarPrevia();
 
     try {
-      motor.perguntar(emCurso.id, pedido.sistema, mensagens);
+      motor.perguntar(emCurso.id, pedido.blocos || pedido.sistema, mensagens);
     } catch (e) {
       emCurso.balao.classList.remove('pensando');
       emCurso.balao.className = 'fala erro';
@@ -2864,7 +3183,8 @@ setTimeout(function () {
         emCurso.balao.textContent = 'A resposta veio vazia.';
       } else {
         emCurso.balao.innerHTML = marcaLeve(emCurso.texto);
-        conversa.push({ papel: 'assistant', texto: emCurso.texto });
+        conversa.push(novaFala('assistant', emCurso.texto));
+        guardarConversa();
         // cortada no teto: melhor dizer do que deixar a frase pendurada
         if (motivo === 'max_tokens') {
           emCurso.balao.insertAdjacentHTML('beforeend',
@@ -2878,7 +3198,10 @@ setTimeout(function () {
     erro(id, mensagem) {
       if (emCurso && emCurso.id === id) {
         emCurso.balao.classList.remove('pensando');
-        if (emCurso.texto.trim()) conversa.push({ papel: 'assistant', texto: emCurso.texto });
+        if (emCurso.texto.trim()) {
+          conversa.push(novaFala('assistant', emCurso.texto));
+          guardarConversa();
+        }
         emCurso = null;
       }
       desenharFala('erro', '⚠ ' + mensagem);
@@ -2887,6 +3210,7 @@ setTimeout(function () {
 
   /* o botão físico de voltar do Android passa por aqui */
   window.__voltarNativo = function () {
+    if (!$('cartao-sentido').classList.contains('oculto')) { fecharSentido(); return true; }
     if (document.querySelector('.folha.aberta')) { fecharFolhas(); return true; }
     if (document.getElementById('copia-manual')) { document.getElementById('copia-manual').remove(); return true; }
     if (app.livro) { sairDoLivro(); return true; }
@@ -2987,9 +3311,11 @@ setTimeout(function () {
 
   function contaDoMes() {
     const livro = estado.ler('leitor.custo', { mes: '', modelos: {}, ultimo: 0 });
-    if (livro.mes !== mesCorrente()) return { total: 0, pedidos: 0, ultimo: 0 };
+    if (livro.mes !== mesCorrente()) return { total: 0, pedidos: 0, ultimo: 0, aproveitado: 0 };
     let total = 0;
     let pedidos = 0;
+    let entrada = 0;
+    let doCache = 0;
     Object.keys(livro.modelos).forEach((m) => {
       const c = livro.modelos[m];
       total += precoDe(m, {
@@ -2997,8 +3323,12 @@ setTimeout(function () {
         cache_read_input_tokens: c.cacheLido, cache_creation_input_tokens: c.cacheGravado,
       });
       pedidos += c.pedidos || 0;
+      entrada += (c.entrada || 0) + (c.cacheGravado || 0);
+      doCache += c.cacheLido || 0;
     });
-    return { total, pedidos, ultimo: livro.ultimo || 0 };
+    const aproveitado = (entrada + doCache) > 0
+      ? Math.round(doCache / (entrada + doCache) * 100) : 0;
+    return { total, pedidos, ultimo: livro.ultimo || 0, aproveitado };
   }
 
   /* Centavos de dólar com duas casas viram «0,00» e não informam nada; abaixo
@@ -3036,6 +3366,8 @@ setTimeout(function () {
   const SAIDA_TIPICA = 1500;
 
   function estimarPergunta(pedido, modelo) {
+    /* Estima pelo texto que de fato vai — a junção plana tem o mesmo tamanho
+       dos blocos, então serve, e não exige somá-los aqui. */
     const caracteres = (pedido.sistema || '').length + (pedido.mensagem || '').length;
     return precoDe(modelo, {
       input_tokens: Math.ceil(caracteres / CARACTERES_POR_TOKEN),
@@ -3090,7 +3422,10 @@ setTimeout(function () {
     alvo.textContent = 'Última pergunta: ' + emDinheiro(conta.ultimo)
       + ' · este mês: ' + emDinheiro(conta.total)
       + (t.mes > 0 ? ' de ' + emDinheiro(t.mes) : '')
-      + ' em ' + conta.pedidos + (conta.pedidos === 1 ? ' pedido' : ' pedidos');
+      + ' em ' + conta.pedidos + (conta.pedidos === 1 ? ' pedido' : ' pedidos')
+      /* Se isto ficar em 0% depois de várias perguntas no mesmo livro, o cache
+         não está pegando, e é sinal de que algo volátil entrou no prefixo. */
+      + (conta.aproveitado ? ' · ' + conta.aproveitado + '% do contexto veio do cache' : '');
   }
 
   /* ================================================================== *
@@ -3604,6 +3939,8 @@ setTimeout(function () {
   const CAMINHO_LIVRO = (imp) => 'livros/' + imp + '.epub';
   const CAMINHO_ESTADO = (imp) => 'estado/' + imp + '.json';
   const CAMINHO_RESUMOS = (imp) => 'resumos/' + imp + '.json';
+  const CAMINHO_CONVERSA = (imp) => 'conversa/' + imp + '.json';
+  const CAMINHO_NOTAS = (imp) => 'notas/' + imp + '.md';
 
   const biblioteca = {
     /* O índice existe para a estante desenhar sem baixar livro nenhum: sem
@@ -3682,6 +4019,42 @@ setTimeout(function () {
     /* As séries são uma só tabela para toda a biblioteca, não uma por livro:
        quem declara «volume 2 de X» precisa que o outro aparelho veja o mesmo
        nome, senão os volumes não se encontram. Mescla pela marca de tempo. */
+    /* A conversa mescla por fala, somando o que cada aparelho tem: dois
+       aparelhos que conversaram offline não podem escolher uma das versões. */
+    /* As notas são o único arquivo aqui feito para olho humano, e por isso
+       substituem em vez de mesclar: são uma exportação, não um estado. */
+    async gravarNotas(imp, texto) {
+      return this.gravar(async (arvore) => {
+        const atual = arvore.get(CAMINHO_NOTAS(imp));
+        if (atual) {
+          const antigo = new TextDecoder().decode(await github.lerBlob(atual.sha));
+          if (antigo === texto) return { mudancas: [], resultado: false };
+        }
+        return {
+          mudancas: [{ caminho: CAMINHO_NOTAS(imp), texto }],
+          resultado: true,
+          mensagem: 'Leitor: notas',
+        };
+      });
+    },
+
+    async sincronizarConversa(imp, minhas) {
+      return this.gravar(async (arvore) => {
+        const remotas = (await github.lerJson(arvore, CAMINHO_CONVERSA(imp)))
+          || { limpoEm: 0, falas: [] };
+        const juntas = mesclarConversas(remotas, minhas);
+        if (JSON.stringify(remotas) === JSON.stringify(juntas)) {
+          return { mudancas: [], resultado: juntas };
+        }
+        return {
+          mudancas: [{ caminho: CAMINHO_CONVERSA(imp),
+                       texto: JSON.stringify(juntas, null, 1) }],
+          resultado: juntas,
+          mensagem: 'Leitor: conversa',
+        };
+      });
+    },
+
     async sincronizarSeries(minhas) {
       return this.gravar(async (arvore) => {
         const guardado = (await github.lerJson(arvore, CAMINHO_SERIES)) || { livros: {} };
@@ -4021,6 +4394,21 @@ setTimeout(function () {
         estado.gravar(chaveResumos(registro.id), juntos);
         if (emUso) { app.resumos = juntos; memoria.desenhar(); }
       }
+
+      const minha = emUso
+        ? { limpoEm: app.conversaLimpaEm || 0, falas: conversa }
+        : lerConversa(registro.id);
+      if (minha.falas.length || minha.limpoEm || emUso) {
+        const juntas = await biblioteca.sincronizarConversa(registro.impressao, minha);
+        estado.gravar(chaveConversa(registro.id), juntas);
+        if (emUso) {
+          app.conversaLimpaEm = juntas.limpoEm;
+          if (juntas.falas.length !== conversa.length) {
+            conversa = juntas.falas;
+            redesenharConversa();
+          }
+        }
+      }
     }
 
     const minhasSeries = estado.ler('leitor.series', {});
@@ -4202,6 +4590,10 @@ setTimeout(function () {
     app.bloco = marcador.bloco || 0;
     app.fronteira = Math.max(marcador.fronteira || 0, app.bloco);
     app.resumos = estado.ler(chaveResumos(id), {});
+    const guardada = lerConversa(id);
+    conversa = guardada.falas;
+    app.conversaLimpaEm = guardada.limpoEm;
+    redesenharConversa();
     prepararSerie();
     app.marcas = marcador.marcas || [];
     app.posicaoEm = marcador.posicaoEm || 0;
@@ -4214,6 +4606,9 @@ setTimeout(function () {
 
   function sairDoLivro() {
     salvarEstado();
+    guardarConversa();
+    conversa = [];
+    redesenharConversa();
     if (sincronia.ligada) sincronizarTudo(true);
     if (app.livro) app.livro.imagens.forEach((url) => URL.revokeObjectURL(url));
     app.livro = null;
@@ -4390,6 +4785,7 @@ setTimeout(function () {
     $('corpo-sumario').classList.toggle('oculto', mostrandoSumario);
     $('corpo-anotacoes').classList.toggle('oculto', !mostrandoSumario);
     $('ver-anotacoes').textContent = mostrandoSumario ? 'Sumário' : 'Anotações';
+    $('exportar-notas').classList.toggle('oculto', !mostrandoSumario);
     if (mostrandoSumario) desenharAnotacoes();
   });
   ao('btn-ajustes', 'click', () => abrirFolha('folha-ajustes'));
@@ -4428,6 +4824,34 @@ setTimeout(function () {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
+  ao('exportar-notas', 'click', exportarNotas);
+
+  ao('limpar-conversa', 'click', () => {
+    if (!conversa.length) return;
+    /* Dois toques em vez de confirm(): dentro de um iframe a caixa de diálogo
+       pode simplesmente não aparecer, e apagar semanas de conversa por engano
+       não tem volta. */
+    const botao = $('limpar-conversa');
+    if (botao.dataset.confirmando !== '1') {
+      botao.dataset.confirmando = '1';
+      botao.textContent = 'Apagar as ' + conversa.length + ' falas? Toque de novo';
+      setTimeout(() => {
+        if (!botao.isConnected) return;
+        botao.dataset.confirmando = '0';
+        botao.textContent = 'Começar uma conversa nova';
+      }, 4000);
+      return;
+    }
+    botao.dataset.confirmando = '0';
+    botao.textContent = 'Começar uma conversa nova';
+    conversa = [];
+    app.conversaLimpaEm = Date.now() / 1000;
+    guardarConversa();
+    redesenharConversa();
+    if (sincronia.ligada) sincronizarTudo(true);
+    aviso('Conversa apagada');
+  });
+
   ao('abrir-serie', 'click', () => {
     app.incorporarSerie = !app.incorporarSerie;
     estado.gravar('leitor.serie.incorporar', app.incorporarSerie);
@@ -4518,9 +4942,11 @@ setTimeout(function () {
     b.addEventListener('mousedown', (ev) => { ev.preventDefault(); criarMarca(b.dataset.cor); });
     b.addEventListener('touchstart', (ev) => { ev.preventDefault(); criarMarca(b.dataset.cor); }, { passive: false });
   });
-  function levarSelecaoParaPergunta(ev) {
-    if (ev) ev.preventDefault();
-    const texto = window.getSelection().toString().trim();
+  /* Serve à barra de seleção e à lista de anotações: o caminho de «este trecho
+     me interessa» até a pergunta é o mesmo, venha de onde vier. */
+  function levarSelecaoParaPergunta(ev, trecho) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    const texto = (trecho || window.getSelection().toString()).trim();
     if (!texto) return;
     app.selecionado = texto;
     app.modoPergunta = 'explicar';
@@ -4532,6 +4958,26 @@ setTimeout(function () {
     atualizarPrevia();
     abrirFolha('folha-perguntar');
   }
+  /* mousedown e touchstart, não click: um clique depois do toque já perdeu a
+     seleção em alguns navegadores, e a seleção é o dado. */
+  ao('sel-sentido', 'mousedown', (ev) => {
+    ev.preventDefault();
+    app.selecionado = window.getSelection().toString().trim();
+    pedirSentido();
+  });
+  ao('sel-sentido', 'touchstart', (ev) => {
+    ev.preventDefault();
+    app.selecionado = window.getSelection().toString().trim();
+    pedirSentido();
+  }, { passive: false });
+
+  ao('sentido-fechar', 'click', fecharSentido);
+  ao('sentido-mais', 'click', () => {
+    const termo = $('sentido-termo').textContent;
+    fecharSentido();
+    levarSelecaoParaPergunta(null, termo);
+  });
+
   ao('sel-perguntar', 'mousedown', levarSelecaoParaPergunta);
   ao('sel-perguntar', 'touchstart', levarSelecaoParaPergunta, { passive: false });
   ao('sel-copiar', 'mousedown', (ev) => {
@@ -4647,7 +5093,8 @@ setTimeout(function () {
                             desenharCusto, contaDoMes, contabilizar,
                             tetos, barrado, estimarPergunta,
                             prepararSerie, textoDaSerie, guardarFichaDaSerie,
-                            desenharSerie, fichaDaSerie,
+                            desenharSerie, fichaDaSerie, mesclarConversas,
+                            notasEmMarkdown, pedirSentido, lerConversa,
                             estado, guarda, VERSAO });
   }
 

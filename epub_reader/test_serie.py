@@ -125,10 +125,10 @@ with sync_playwright() as p:
       const p = api.montarPedido();
       // os capítulos do volume 2 que NÃO foram resumidos são os não lidos
       const vol2 = api.app.serie.anteriores.find(a => a.volume === 2);
-      return {mensagem: p.mensagem, sistema: p.sistema,
+      return {prompt: p.sistema + '\\n' + p.mensagem, sistema: p.sistema,
               resumidosNoVol2: vol2.capitulos.map(c => c.i)};
     }""")
-    msg = dados["mensagem"]
+    msg = dados["prompt"]
     print("   capítulos do volume 2 no contexto:", dados["resumidosNoVol2"])
     print("   tem a seção da série:", "Volumes anteriores desta série" in msg)
     if "Volumes anteriores desta série" not in msg:
@@ -142,7 +142,8 @@ with sync_playwright() as p:
         falhas.append("a regra do volume em uso desapareceu")
     # e o volume 3 (em uso) não vazou
     vazados = pg.evaluate("""() => {
-      const m = api.montarPedido().mensagem;
+      const p = api.montarPedido();
+      const m = p.sistema + '\\n' + p.mensagem;
       return api.app.livro.blocos.filter(b => b.i > api.app.fronteira)
         .filter(b => b.t && b.t.length > 40 && m.includes(b.t.slice(0, 40))).length;
     }""")
@@ -155,13 +156,14 @@ with sync_playwright() as p:
         falhas.append("a memória do próprio volume não estava no contexto, com a série ligada")
     pg.evaluate("() => document.getElementById('abrir-serie').click()")
     pg.wait_for_timeout(300)
-    semSerie = pg.evaluate("() => api.montarPedido()")
-    print("   sem a série:", "Volumes anteriores" not in semSerie["mensagem"])
-    if "Volumes anteriores" in semSerie["mensagem"]:
+    semSerie = pg.evaluate("""() => { const p = api.montarPedido();
+      return {prompt: p.sistema + '\\n' + p.mensagem, sistema: p.sistema}; }""")
+    print("   sem a série:", "Volumes anteriores" not in semSerie["prompt"])
+    if "Volumes anteriores" in semSerie["prompt"]:
         falhas.append("desligar o botão não tirou os volumes anteriores")
     if "SÉRIE:" in semSerie["sistema"]:
         falhas.append("desligado, as regras ainda falam de série")
-    if "O que aconteceu em cada capítulo" not in semSerie["mensagem"]:
+    if "O que aconteceu em cada capítulo" not in semSerie["prompt"]:
         falhas.append("desligar a série também tirou a memória do próprio livro")
     pg.evaluate("() => document.getElementById('abrir-serie').click()")
 
@@ -177,7 +179,8 @@ with sync_playwright() as p:
     pg.evaluate("async () => { await api.prepararSerie(); api.desenharSerie(); }")
     pg.wait_for_timeout(300)
     s = pg.evaluate("() => api.app.serie.anteriores.map(a => [a.volume, a.capitulos.length])")
-    msg = pg.evaluate("() => api.montarPedido().mensagem")
+    msg = pg.evaluate("""() => { const p = api.montarPedido();
+      return p.sistema + '\\n' + p.mensagem; }""")
     print("   anteriores e seus capítulos:", s)
     if "Volume 1" in msg:
         falhas.append("um volume sem resumo nenhum entrou no contexto")

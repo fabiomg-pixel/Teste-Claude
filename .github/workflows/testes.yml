@@ -68,6 +68,10 @@ jobs:
         working-directory: epub_reader
         run: python3 test_serie.py
 
+      - name: Histórico, cache, sentido, destaques e notas
+        working-directory: epub_reader
+        run: python3 test_extras.py
+
       - name: O servidor perdendo o disco inteiro
         working-directory: epub_reader
         run: python3 test_disco_efemero.py

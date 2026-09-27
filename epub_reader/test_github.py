@@ -160,6 +160,26 @@ with sync_playwright() as p:
     if "resumos/aa11.json" not in pg.evaluate("() => window.__GH.arquivos()"):
         falhas.append("a memória não foi gravada no repositório")
 
+    print("4c. a conversa e as notas no repositório")
+    r = pg.evaluate("""async () => {
+      await api.biblioteca.sincronizarConversa('aa11', {limpoEm: 0, falas: [
+        {id: 'x1', papel: 'user', texto: 'do aparelho A', em: 100}]});
+      const juntas = await api.biblioteca.sincronizarConversa('aa11', {limpoEm: 0, falas: [
+        {id: 'x2', papel: 'assistant', texto: 'do aparelho B', em: 200}]});
+      const gravou = await api.biblioteca.gravarNotas('aa11', '# Minhas notas');
+      const denovo = await api.biblioteca.gravarNotas('aa11', '# Minhas notas');
+      return {falas: juntas.falas.map(f => f.texto), gravou, denovo,
+              arquivos: window.__GH.arquivos()};
+    }""")
+    print("   falas somadas:", r["falas"])
+    print("   notas gravadas:", r["gravou"], "| segunda vez (sem mudança):", r["denovo"])
+    if r["falas"] != ["do aparelho A", "do aparelho B"]:
+        falhas.append(f"a conversa não somou entre aparelhos: {r['falas']}")
+    if "conversa/aa11.json" not in r["arquivos"] or "notas/aa11.md" not in r["arquivos"]:
+        falhas.append(f"faltou gravar conversa ou notas: {r['arquivos']}")
+    if r["denovo"]:
+        falhas.append("gravou as mesmas notas de novo, fazendo um commit inútil")
+
     print("5. baixar o livro de volta, byte a byte")
     r = pg.evaluate("""async () => {
       const {livros} = await api.biblioteca.listar();
