@@ -23,8 +23,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Instalar o que o servidor precisa
-        run: python3 -m pip install --quiet flask anthropic
+      # O requirements.txt do projeto, e não uma lista que eu adivinhe aqui:
+      # a primeira versão deste arquivo instalava «flask anthropic» e quebrou no
+      # bs4, que o parser usa. Duas listas de dependências divergem sempre.
+      - name: Instalar as dependências do projeto
+        run: python3 -m pip install --quiet -r epub_reader/requirements.txt
 
       - name: Rodar
         working-directory: epub_reader
@@ -40,9 +43,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Instalar o Playwright e o Chromium
+      # Os testes de navegador que sobem o servidor Flask precisam de tudo o que
+      # ele importa, e não só do Playwright.
+      - name: Instalar o Playwright, o Chromium e as dependências do projeto
         run: |
-          python3 -m pip install --quiet playwright flask
+          python3 -m pip install --quiet playwright -r epub_reader/requirements.txt
           python3 -m playwright install --with-deps chromium
 
       # Cada um cobre um ambiente diferente, e é a diferença entre eles que
