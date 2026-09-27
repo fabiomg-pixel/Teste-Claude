@@ -124,6 +124,38 @@ Recusa de classificador (uma trama com peste ou veneno não é pesquisa de
 biologia, mas o classificador não lê romances) vai com `fallbacks: "default"`: a
 API tenta noutro modelo em vez de a conversa parar.
 
+### A memória do livro
+
+Cada capítulo ganha um resumo de 80 a 150 palavras quando a leitura cruza o fim
+dele, guardado em `resumos/<impressão>.json` no repositório. Sem isso o modelo
+conhece o livro por «os últimos 4.500 caracteres mais alguns trechos achados por
+palavra-chave» — num romance de trinta capítulos, o presente e nada mais.
+
+Só capítulo **inteiramente** lido é resumido. O resumo é texto gerado que entra no
+contexto sem passar pelo caminho do recorte, então seria a porta perfeita para um
+spoiler: o recorte continuaria impecável e a promessa já estaria quebrada.
+
+O gatilho é cruzar o capítulo, não perguntar — resumir na hora da pergunta
+deixaria a primeira pergunta lenta e caríssima. Usa o `claude-sonnet-5`, não o
+modelo da conversa: resumir é extração, e um romance de trinta capítulos sai por
+centavos. Sonnet e não Haiku porque um resumo ruim envenena toda resposta futura
+que o use. A mescla entre aparelhos é por capítulo, e o mais adiantado ganha.
+
+### O que isto custa, e dois limites
+
+A folha de perguntar mostra o custo da última pergunta e o acumulado do mês, por
+modelo, guardado só no aparelho. Abaixo de um centavo diz «menos de US$ 0,01» em
+vez de fingir duas casas decimais; a tabela de preços tem a data no código.
+
+Dois limites configuráveis — por pergunta (padrão US$ 0,10) e no mês (US$ 5) — e o
+que acontece ao estourá-los não é uma porta fechada. **Copiar e colar no app do
+Claude é grátis**: vai pela assinatura, não por token. Então o leitor estima o
+custo, explica, e oferece o caminho que não cobra, com «perguntar mesmo assim» ao
+lado. O limite é um conselho, não uma cela.
+
+O teto do mês também barra os resumos automáticos — sem isso o limite seria furado
+por um laço de fundo que ninguém pediu. `0` desliga qualquer um dos dois.
+
 O APK (veja [`android/`](../android/)) é uma casca de WebView em volta desse
 mesmo arquivo: a página detecta a ponte nativa e troca o copiar-e-colar por
 uma conversa em streaming, com a chamada à API feita em Java. Uma cópia só do
@@ -490,7 +522,7 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E cinco testes de navegador, todos precisando do Playwright:
+E seis testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
@@ -499,6 +531,7 @@ E cinco testes de navegador, todos precisando do Playwright:
 | `test_como_artifact.py` | o leitor de pé nos dois ambientes: publicado e solto |
 | `test_github.py` | a biblioteca no GitHub e a tela de conexão, contra uma API falsa |
 | `test_conversa.py` | a conversa com a API da Anthropic — e a fronteira anti-spoiler agora que o recorte atravessa a rede |
+| `test_memoria.py` | os resumos por capítulo, e o que a memória não pode deixar entrar |
 
 O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
 usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
@@ -533,6 +566,7 @@ python3 test_disco_efemero.py
 python3 test_como_artifact.py
 python3 test_github.py
 python3 test_conversa.py
+python3 test_memoria.py
 ```
 
 Tudo isso roda a cada empurrão, em

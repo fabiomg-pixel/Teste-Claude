@@ -269,6 +269,57 @@ with sync_playwright() as p:
         falhas.append("o portão da crítica não foi lembrado depois de recarregar")
     pg.evaluate("() => { api.app.critica = false; api.estado.gravar('leitor.critica', false); }")
 
+    print("8c. o teto de custo desvia para o caminho grátis")
+    # o passo anterior recarregou a página: sem livro aberto, enviarPergunta sai
+    # na primeira linha e o teste mediria o nada
+    abrir(pg)
+    pg.evaluate("() => { window.__API.roteiro('normal'); window.__API.limpar(); }")
+    # um teto minúsculo: qualquer pergunta passa dele
+    pg.evaluate("() => { api.estado.gravar('leitor.tetos', {pergunta: 0.0001, mes: 0}); }")
+    perguntar(pg, "uma pergunta qualquer", espera=600)
+    enviados = pg.evaluate("() => window.__API.pedidos.length")
+    painel = pg.locator("#painel-teto.oculto").count() == 0
+    dito = pg.locator("#texto-teto").text_content().strip()
+    print("   pedidos enviados:", enviados, "| painel apareceu:", painel)
+    print("   →", dito[:96])
+    if enviados:
+        falhas.append("estourou o teto e mandou a pergunta de todo jeito")
+    if not painel:
+        falhas.append("o teto barrou sem explicar nada na tela")
+    if "limite" not in dito or "colar" not in dito:
+        falhas.append(f"o aviso do teto não oferece o caminho grátis: «{dito[:70]}»")
+
+    # «perguntar mesmo assim» tem de funcionar: o teto é um conselho, não uma cela
+    pg.click("#teto-seguir")
+    pg.wait_for_timeout(1500)
+    if not pg.evaluate("() => window.__API.pedidos.length"):
+        falhas.append("«perguntar mesmo assim» não perguntou")
+    if pg.locator("#painel-teto.oculto").count() == 0:
+        falhas.append("o painel do teto ficou aberto depois de seguir")
+    print("   perguntar mesmo assim:", ultima_fala(pg)[:46])
+
+    # o teto do mês fala de acumulado, não de estimativa
+    pg.evaluate("""() => {
+      api.estado.gravar('leitor.tetos', {pergunta: 0, mes: 0.000001});
+      window.__API.limpar();
+    }""")
+    perguntar(pg, "e agora?", espera=600)
+    dito = pg.locator("#texto-teto").text_content().strip()
+    print("   teto do mês →", dito[:88])
+    if pg.evaluate("() => window.__API.pedidos.length"):
+        falhas.append("o teto do mês não barrou")
+    if "este mês" not in dito:
+        falhas.append(f"o aviso do mês não fala do acumulado: «{dito[:70]}»")
+
+    # e ele também barra os resumos automáticos, que a pessoa não pediu
+    pg.evaluate("() => { window.__API.limpar(); api.app.resumos = {}; api.memoria.enfileirar(); }")
+    pg.wait_for_timeout(900)
+    if pg.evaluate("() => window.__API.pedidos.length"):
+        falhas.append("o teto do mês não barrou os resumos automáticos")
+    print("   resumos de fundo barrados:",
+          pg.evaluate("() => document.getElementById('estado-memoria').textContent")[:62])
+    pg.evaluate("() => api.estado.gravar('leitor.tetos', {pergunta: 0, mes: 0})")
+
     print("9. apagar a chave desliga a conversa")
     pg.evaluate("() => { window.__API.roteiro('normal'); }")
     pg.evaluate("() => document.getElementById('btn-perguntar').click()")

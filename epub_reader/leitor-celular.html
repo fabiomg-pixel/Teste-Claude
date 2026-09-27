@@ -884,9 +884,37 @@
         <button class="acao" id="salvar-chave">Guardar chave</button>
         <button class="acao secundaria oculto" id="apagar-chave">Apagar a chave deste aparelho</button>
       </div>
+
+      <p class="rotulo" style="padding-top:1rem">Limites de gasto</p>
+      <p class="vazio" style="padding:.3rem 0 .6rem">
+        Acima deles o leitor não envia: mostra o que a pergunta custaria e oferece
+        o copiar-e-colar, que é grátis porque vai pela sua assinatura do Claude e
+        não por token. Em dólares; 0 desliga o limite.
+      </p>
+      <div class="fileira" style="gap:.5rem">
+        <label class="vazio" style="flex:1">Por pergunta
+          <input class="campo" id="teto-pergunta" type="number" min="0" step="0.01"
+                 inputmode="decimal" style="min-height:0;margin-top:.25rem">
+        </label>
+        <label class="vazio" style="flex:1">No mês
+          <input class="campo" id="teto-mes" type="number" min="0" step="0.5"
+                 inputmode="decimal" style="min-height:0;margin-top:.25rem">
+        </label>
+      </div>
+      <button class="acao secundaria" id="salvar-tetos" style="margin-top:.6rem">Guardar limites</button>
     </div>
 
     <div class="conversa oculto" id="conversa"></div>
+
+    <div class="painel-chave oculto" id="painel-teto">
+      <p class="rotulo">Acima do seu limite</p>
+      <p class="vazio" id="texto-teto" style="padding:.3rem 0 .6rem"></p>
+      <div class="pilha" style="padding:0">
+        <button class="acao" id="teto-copiar">Copiar para colar no Claude (grátis)</button>
+        <button class="acao secundaria" id="teto-seguir">Perguntar mesmo assim</button>
+        <button class="acao secundaria" id="teto-ajustar">Mudar os limites</button>
+      </div>
+    </div>
 
     <div class="modos" id="modos">
       <button class="ficha" data-modo-pergunta="recapitular">Recapitular</button>
@@ -999,7 +1027,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 16;
+  const VERSAO = 17;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -2696,12 +2724,21 @@ setTimeout(function () {
     marcarEscolhas('[data-modelo]', 'modelo', motor.modelo());
   }
 
-  function enviarPergunta() {
+  function enviarPergunta(aoCustoQueSeja) {
     if (!app.livro) return;
     if (!motor.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
     if (emCurso) { aviso('Espere a resposta terminar.'); return; }
 
     const pedido = montarPedido();
+
+    /* O teto é consultado aqui, com o pedido montado: antes disso não há o que
+       estimar. Barrar não é recusar — o painel oferece o caminho grátis, e
+       «perguntar mesmo assim» fica ao lado. */
+    if (!aoCustoQueSeja) {
+      const trava = barrado(estimarPergunta(pedido, motor.modelo()));
+      if (trava) { desenharTeto(trava); rolarConversa(); return; }
+    }
+    desenharTeto(null);
     const ficha = document.querySelector('[data-modo-pergunta="' + app.modoPergunta + '"]');
     const rotulo = pedido.pergunta ||
       (app.selecionado ? 'Explicar o trecho selecionado' : (ficha ? ficha.textContent : 'Comente o que li'));
@@ -2838,7 +2875,8 @@ setTimeout(function () {
       marcarEscolhas('[data-modelo]', 'modelo', b.dataset.modelo);
       aviso('Modelo: ' + b.textContent);
     }));
-    ao('enviar', 'click', enviarPergunta);
+    ao('enviar', 'click', () => enviarPergunta(false));
+    desenharLimites();
     atualizarChave();
   }
 
@@ -2906,13 +2944,87 @@ setTimeout(function () {
     return 'US$ ' + v.toFixed(2).replace('.', ',');
   }
 
+  /* ------------------------------------------------------- os dois tetos
+
+     O copiar-e-colar é grátis: você paga pela assinatura do Claude, não por
+     token. Isso muda o que um limite de custo pode ser — em vez de uma porta
+     fechada, ele é um desvio para a porta que não cobra. Daí a resposta a
+     estourar o teto não ser «não posso», e sim «isto custaria X; melhor copiar».
+
+     Dois tetos porque são dois riscos diferentes: uma pergunta enorme de uma vez
+     (livro comprido, memória cheia) e o acúmulo de muitas perguntas pequenas. */
+  const TETOS_PADRAO = { pergunta: 0.10, mes: 5 };
+
+  function tetos() {
+    const t = estado.ler('leitor.tetos', {});
+    return {
+      pergunta: t.pergunta == null ? TETOS_PADRAO.pergunta : t.pergunta,
+      mes: t.mes == null ? TETOS_PADRAO.mes : t.mes,
+    };
+  }
+
+  /* Estimativa, e anunciada como tal. Tokens a partir de caracteres (~3,5 por
+     token em português) e uma resposta típica com raciocínio, porque o tamanho
+     real da saída só se conhece depois. Errar por excesso é o lado certo de
+     errar: um aviso a mais é melhor que uma conta surpresa. */
+  const CARACTERES_POR_TOKEN = 3.5;
+  const SAIDA_TIPICA = 1500;
+
+  function estimarPergunta(pedido, modelo) {
+    const caracteres = (pedido.sistema || '').length + (pedido.mensagem || '').length;
+    return precoDe(modelo, {
+      input_tokens: Math.ceil(caracteres / CARACTERES_POR_TOKEN),
+      output_tokens: SAIDA_TIPICA,
+    });
+  }
+
+  /* Devolve o que barra, ou null. Quem chama decide o que fazer — e a única
+     coisa que faz sentido fazer é oferecer o caminho grátis. */
+  function barrado(custo) {
+    const t = tetos();
+    const conta = contaDoMes();
+    if (t.mes > 0 && conta.total >= t.mes) {
+      return {
+        qual: 'mes',
+        texto: 'Você já gastou ' + emDinheiro(conta.total) + ' este mês, e seu limite é '
+             + emDinheiro(t.mes) + '. Daqui para frente o caminho grátis é copiar o '
+             + 'texto e colar no app do Claude — ele já leva as regras anti-spoiler.',
+      };
+    }
+    if (t.pergunta > 0 && custo > t.pergunta) {
+      return {
+        qual: 'pergunta',
+        texto: 'Esta pergunta deve custar cerca de ' + emDinheiro(custo) + ', acima do seu '
+             + 'limite de ' + emDinheiro(t.pergunta) + ' por pergunta. Copiar e colar no '
+             + 'app do Claude sai de graça e leva o mesmo recorte.',
+      };
+    }
+    return null;
+  }
+
+  function desenharTeto(trava) {
+    const painel = $('painel-teto');
+    if (!painel) return;
+    painel.classList.toggle('oculto', !trava);
+    if (trava) $('texto-teto').textContent = trava.texto;
+  }
+
+  function desenharLimites() {
+    const t = tetos();
+    if ($('teto-pergunta')) $('teto-pergunta').value = t.pergunta;
+    if ($('teto-mes')) $('teto-mes').value = t.mes;
+    desenharCusto();
+  }
+
   function desenharCusto() {
     const alvo = $('estado-custo');
     if (!alvo) return;
     const conta = contaDoMes();
     if (!conta.pedidos) { alvo.textContent = ''; return; }
+    const t = tetos();
     alvo.textContent = 'Última pergunta: ' + emDinheiro(conta.ultimo)
       + ' · este mês: ' + emDinheiro(conta.total)
+      + (t.mes > 0 ? ' de ' + emDinheiro(t.mes) : '')
       + ' em ' + conta.pedidos + (conta.pedidos === 1 ? ' pedido' : ' pedidos');
   }
 
@@ -2981,6 +3093,15 @@ setTimeout(function () {
        botão de completar — o mesmo caminho nos dois casos. */
     enfileirar() {
       if (!motor || !motor.resumir || !motor.temChave()) return;
+      /* O teto do mês vale para os resumos também, e aqui eles são automáticos:
+         sem isto o limite seria furado por um laço de fundo que a pessoa não
+         pediu. Só o teto do mês — o de «por pergunta» é sobre a conversa. */
+      const t = tetos();
+      if (t.mes > 0 && contaDoMes().total >= t.mes) {
+        this.ultimoErro = 'o limite de ' + emDinheiro(t.mes) + ' do mês foi atingido';
+        this.desenhar();
+        return;
+      }
       const jaNaFila = new Set(this.fila.map((c) => c.indice));
       this.faltam().forEach((c) => { if (!jaNaFila.has(c.indice)) this.fila.push(c); });
       this.moer();
@@ -4122,6 +4243,26 @@ setTimeout(function () {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
+  ao('teto-copiar', 'click', () => { desenharTeto(null); copiarPacote(); });
+  ao('teto-seguir', 'click', () => { desenharTeto(null); enviarPergunta(true); });
+  ao('teto-ajustar', 'click', () => {
+    desenharTeto(null);
+    $('painel-chave').classList.remove('oculto');
+    $('teto-pergunta').focus();
+  });
+
+  ao('salvar-tetos', 'click', () => {
+    const ler = (id, reserva) => {
+      const v = parseFloat($(id).value.replace(',', '.'));
+      return Number.isFinite(v) && v >= 0 ? v : reserva;
+    };
+    const t = { pergunta: ler('teto-pergunta', TETOS_PADRAO.pergunta),
+                mes: ler('teto-mes', TETOS_PADRAO.mes) };
+    estado.gravar('leitor.tetos', t);
+    desenharLimites();
+    aviso('Limites guardados');
+  });
+
   ao('completar-memoria', 'click', () => {
     if (!motor || !motor.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
     memoria.enfileirar();
@@ -4271,6 +4412,7 @@ setTimeout(function () {
                             mesclarEstados, inflarCru, impressaoDigital,
                             motorNavegador, montarPedido, app, memoria,
                             desenharCusto, contaDoMes, contabilizar,
+                            tetos, barrado, estimarPergunta,
                             estado, guarda, VERSAO });
   }
 
