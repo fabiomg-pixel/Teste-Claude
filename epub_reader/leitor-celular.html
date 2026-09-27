@@ -690,13 +690,15 @@
           e os livros também. O endereço e o token aparecem no terminal quando
           você roda <span class="mono">python app.py</span>.
         </p>
-        <input class="campo" id="campo-servidor" style="min-height:0;margin-bottom:.5rem"
-               placeholder="http://seu-mac:5001" inputmode="url" autocomplete="off">
-        <input class="campo" id="campo-token" type="password" style="min-height:0"
-               placeholder="token de sincronização" autocomplete="off">
-        <div class="pilha" style="padding-top:.6rem">
-          <button class="acao" id="salvar-sync">Guardar e sincronizar</button>
-          <button class="acao secundaria oculto" id="desligar-sync">Desligar a sincronização</button>
+        <div id="forma-sync">
+          <input class="campo" id="campo-servidor" style="min-height:0;margin-bottom:.5rem"
+                 placeholder="http://seu-mac:5001" inputmode="url" autocomplete="off">
+          <input class="campo" id="campo-token" type="password" style="min-height:0"
+                 placeholder="token de sincronização" autocomplete="off">
+          <div class="pilha" style="padding-top:.6rem">
+            <button class="acao" id="salvar-sync">Guardar e sincronizar</button>
+            <button class="acao secundaria oculto" id="desligar-sync">Desligar a sincronização</button>
+          </div>
         </div>
       </div>
     </div>
@@ -939,7 +941,17 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 8;
+  const VERSAO = 9;
+
+  /* Ligar evento por id, tolerando a ausência. Um único elemento faltante
+     lançava um TypeError que interrompia a ligação de TODOS os eventos
+     seguintes: a página ficava inerte e em silêncio. Nenhum botão vale isso. */
+  function ao(id, evento, fn, opcoes) {
+    const alvo = $(id);
+    if (!alvo) { console.warn('Leitor: elemento #' + id + ' não existe.'); return; }
+    alvo.addEventListener(evento, fn, opcoes);
+  }
+
 
   /* O invólucro do artifact pode não trazer a meta viewport; sem ela o
      Android renderiza a 980px e o layout de celular não vale. */
@@ -2380,7 +2392,7 @@ setTimeout(function () {
     $('explicacao-app').classList.remove('oculto');
     $('conversa').classList.remove('oculto');
 
-    $('btn-chave').addEventListener('click', () => {
+    ao('btn-chave', 'click', () => {
       const painel = $('painel-chave');
       painel.classList.toggle('oculto');
       if (!painel.classList.contains('oculto')) {
@@ -2388,7 +2400,7 @@ setTimeout(function () {
         marcarEscolhas('[data-modelo]', 'modelo', window.Ponte.modelo());
       }
     });
-    $('salvar-chave').addEventListener('click', () => {
+    ao('salvar-chave', 'click', () => {
       const chave = $('campo-chave').value.trim();
       if (!chave) { aviso('Cole a chave primeiro.'); return; }
       window.Ponte.salvarChave(chave);
@@ -2396,7 +2408,7 @@ setTimeout(function () {
       atualizarChave();
       aviso('Chave guardada neste aparelho');
     });
-    $('apagar-chave').addEventListener('click', () => {
+    ao('apagar-chave', 'click', () => {
       window.Ponte.apagarChave();
       atualizarChave();
       aviso('Chave apagada');
@@ -2406,7 +2418,7 @@ setTimeout(function () {
       marcarEscolhas('[data-modelo]', 'modelo', b.dataset.modelo);
       aviso('Modelo: ' + b.textContent);
     }));
-    $('enviar').addEventListener('click', enviarNativo);
+    ao('enviar', 'click', enviarNativo);
     atualizarChave();
   }
 
@@ -2839,15 +2851,24 @@ setTimeout(function () {
      campos e receber uma falha de rede sem explicação. */
   const noArtifact = !!window.claude;
   if (noArtifact) {
-    $('painel-sync').innerHTML =
-      '<p class="vazio" style="padding:.2rem 0 .3rem">Esta cópia da página é a ' +
-      'publicada, e ela não tem permissão para falar com servidores — a política ' +
-      'de segurança do artifact bloqueia. Para sincronizar, use o aplicativo ' +
-      'Android ou abra o leitor pelo endereço do seu próprio servidor ' +
-      '(<span class="mono">/celular</span>).</p>';
+    /* Esconder, e nunca apagar: trocar o innerHTML deste painel destruía o
+       #salvar-sync, e a ligação de evento logo abaixo morria com um TypeError
+       que matava o script inteiro — e com ele todos os outros botões, inclusive
+       o de abrir livro. Um erro que só acontecia dentro do artifact, onde
+       window.claude existe, e por isso nenhum teste local o via. */
+    const forma = $('forma-sync');
+    if (forma) forma.classList.add('oculto');
+    const nota = document.createElement('p');
+    nota.className = 'vazio';
+    nota.style.padding = '.2rem 0 .3rem';
+    nota.textContent = 'Esta cópia da página é a publicada, e ela não tem '
+      + 'permissão para falar com servidores — a política de segurança do '
+      + 'artifact bloqueia. Para sincronizar, use o aplicativo Android ou abra '
+      + 'o leitor pelo endereço do seu próprio servidor (/celular).';
+    $('painel-sync').appendChild(nota);
   }
 
-  $('abrir-sync').addEventListener('click', () => {
+  ao('abrir-sync', 'click', () => {
     const painel = $('painel-sync');
     const fechado = painel.classList.toggle('oculto');
     $('abrir-sync').setAttribute('aria-expanded', String(!fechado));
@@ -2859,7 +2880,7 @@ setTimeout(function () {
     }
   });
 
-  $('salvar-sync').addEventListener('click', async () => {
+  ao('salvar-sync', 'click', async () => {
     const servidor = $('campo-servidor').value.trim().replace(/\/+$/, '');
     const token = $('campo-token').value.trim();
     if (!servidor || !token) { aviso('Preencha o endereço e o token.'); return; }
@@ -2875,7 +2896,7 @@ setTimeout(function () {
     await sincronizarTudo();
   });
 
-  $('desligar-sync').addEventListener('click', () => {
+  ao('desligar-sync', 'click', () => {
     sincronia.config = { servidor: '', token: '' };
     $('campo-servidor').value = '';
     $('campo-token').value = '';
@@ -2884,21 +2905,21 @@ setTimeout(function () {
     aviso('Sincronização desligada');
   });
 
-  $('abrir').addEventListener('click', () => $('arquivo').click());
-  $('arquivo').addEventListener('change', (ev) => {
+  ao('abrir', 'click', () => $('arquivo').click());
+  ao('arquivo', 'change', (ev) => {
     const arquivo = ev.target.files && ev.target.files[0];
     if (arquivo) importar(arquivo);
     ev.target.value = '';
   });
-  $('voltar').addEventListener('click', sairDoLivro);
+  ao('voltar', 'click', sairDoLivro);
 
-  $('toque-dir').addEventListener('click', proxima);
-  $('toque-esq').addEventListener('click', anterior);
+  ao('toque-dir', 'click', proxima);
+  ao('toque-esq', 'click', anterior);
 
   /* Toque na página: borda esquerda volta, borda direita avança, meio
      mostra/esconde os controles. Um toque que terminou uma seleção não vira
      virada de página. */
-  $('palco').addEventListener('click', (ev) => {
+  ao('palco', 'click', (ev) => {
     if (!app.livro || ev.target.closest('a, .toque')) return;
     const selecao = window.getSelection();
     if (selecao && !selecao.isCollapsed) return;
@@ -2910,23 +2931,23 @@ setTimeout(function () {
     else document.body.classList.toggle('imerso');
   });
 
-  $('btn-sumario').addEventListener('click', () => {
+  ao('btn-sumario', 'click', () => {
     desenharSumario();
     $('corpo-sumario').classList.remove('oculto');
     $('corpo-anotacoes').classList.add('oculto');
     $('ver-anotacoes').textContent = 'Anotações';
     abrirFolha('folha-sumario');
   });
-  $('ver-anotacoes').addEventListener('click', () => {
+  ao('ver-anotacoes', 'click', () => {
     const mostrandoSumario = !$('corpo-sumario').classList.contains('oculto');
     $('corpo-sumario').classList.toggle('oculto', mostrandoSumario);
     $('corpo-anotacoes').classList.toggle('oculto', !mostrandoSumario);
     $('ver-anotacoes').textContent = mostrandoSumario ? 'Sumário' : 'Anotações';
     if (mostrandoSumario) desenharAnotacoes();
   });
-  $('btn-ajustes').addEventListener('click', () => abrirFolha('folha-ajustes'));
-  $('btn-perguntar').addEventListener('click', () => { atualizarPrevia(); abrirFolha('folha-perguntar'); });
-  $('veu').addEventListener('click', fecharFolhas);
+  ao('btn-ajustes', 'click', () => abrirFolha('folha-ajustes'));
+  ao('btn-perguntar', 'click', () => { atualizarPrevia(); abrirFolha('folha-perguntar'); });
+  ao('veu', 'click', fecharFolhas);
   document.querySelectorAll('[data-fechar]').forEach((b) => b.addEventListener('click', fecharFolhas));
 
   document.querySelectorAll('[data-papel-valor]').forEach((b) => b.addEventListener('click', () => {
@@ -2941,13 +2962,13 @@ setTimeout(function () {
   document.querySelectorAll('[data-modo]').forEach((b) => b.addEventListener('click', () => {
     app.ajustes.modo = b.dataset.modo; aplicarAjustes(); repaginar(app.bloco);
   }));
-  $('sld-corpo').addEventListener('input', (ev) => {
+  ao('sld-corpo', 'input', (ev) => {
     app.ajustes.corpo = parseInt(ev.target.value, 10); aplicarAjustes(); repaginar(app.bloco);
   });
-  $('sld-entrelinha').addEventListener('input', (ev) => {
+  ao('sld-entrelinha', 'input', (ev) => {
     app.ajustes.entrelinha = parseFloat(ev.target.value); aplicarAjustes(); repaginar(app.bloco);
   });
-  $('sld-medida').addEventListener('input', (ev) => {
+  ao('sld-medida', 'input', (ev) => {
     app.ajustes.medida = parseInt(ev.target.value, 10); aplicarAjustes(); repaginar(app.bloco);
   });
 
@@ -2956,12 +2977,12 @@ setTimeout(function () {
     marcarEscolhas('[data-modo-pergunta]', 'modoPergunta', app.modoPergunta);
     atualizarPrevia();
   }));
-  $('pergunta').addEventListener('input', () => {
+  ao('pergunta', 'input', () => {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
-  $('copiar').addEventListener('click', copiarPacote);
-  $('baixar').addEventListener('click', baixarPacote);
+  ao('copiar', 'click', copiarPacote);
+  ao('baixar', 'click', baixarPacote);
 
   document.querySelectorAll('.selecao .cor').forEach((b) => {
     b.addEventListener('mousedown', (ev) => { ev.preventDefault(); criarMarca(b.dataset.cor); });
@@ -2981,9 +3002,9 @@ setTimeout(function () {
     atualizarPrevia();
     abrirFolha('folha-perguntar');
   }
-  $('sel-perguntar').addEventListener('mousedown', levarSelecaoParaPergunta);
-  $('sel-perguntar').addEventListener('touchstart', levarSelecaoParaPergunta, { passive: false });
-  $('sel-copiar').addEventListener('mousedown', (ev) => {
+  ao('sel-perguntar', 'mousedown', levarSelecaoParaPergunta);
+  ao('sel-perguntar', 'touchstart', levarSelecaoParaPergunta, { passive: false });
+  ao('sel-copiar', 'mousedown', (ev) => {
     ev.preventDefault();
     const texto = window.getSelection().toString();
     navigator.clipboard.writeText(texto).then(() => aviso('Trecho copiado'), () => aviso('O navegador não deixou copiar.'));
@@ -2999,13 +3020,13 @@ setTimeout(function () {
 
   /* gestos: deslizar para virar página */
   let toqueX = 0, toqueY = 0, tempoToque = 0;
-  $('palco').addEventListener('touchstart', (ev) => {
+  ao('palco', 'touchstart', (ev) => {
     if (ev.touches.length !== 1) return;
     toqueX = ev.touches[0].clientX;
     toqueY = ev.touches[0].clientY;
     tempoToque = Date.now();
   }, { passive: true });
-  $('palco').addEventListener('touchend', (ev) => {
+  ao('palco', 'touchend', (ev) => {
     if (app.ajustes.modo === 'rolagem') return;
     const t = ev.changedTouches[0];
     const dx = t.clientX - toqueX;
@@ -3016,13 +3037,13 @@ setTimeout(function () {
     dx < 0 ? proxima() : anterior();
   }, { passive: true });
 
-  $('janela').addEventListener('scroll', () => {
+  ao('janela', 'scroll', () => {
     if (app.ajustes.modo !== 'rolagem') return;
     clearTimeout(window._rolando);
     window._rolando = setTimeout(atualizarBlocoAtual, 160);
   });
 
-  $('trilha').addEventListener('click', (ev) => {
+  ao('trilha', 'click', (ev) => {
     if (!app.livro) return;
     const caixa = $('trilha').getBoundingClientRect();
     const razao = Math.max(0, Math.min(1, (ev.clientX - caixa.left) / caixa.width));

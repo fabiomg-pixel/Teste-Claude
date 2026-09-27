@@ -375,13 +375,35 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-Há ainda um teste de ponta a ponta que sobe o servidor e dirige **dois
-aparelhos** (dois navegadores isolados) sincronizando de verdade — precisa do
-Playwright:
+E três testes de navegador, todos precisando do Playwright:
+
+| Teste | O que ele pega |
+|---|---|
+| `test_sincronia_navegador.py` | dois aparelhos sincronizando de verdade contra o servidor |
+| `test_disco_efemero.py` | o servidor perde o disco inteiro e os aparelhos o reconstroem |
+| `test_como_artifact.py` | o leitor de pé nos dois ambientes: publicado e solto |
+
+O último existe por um defeito que sobreviveu a várias rodadas: dentro do
+artifact o `window.claude` existe, e o leitor trocava o conteúdo do painel de
+sincronização por um aviso — destruindo um botão em que ele ligava um evento
+logo abaixo. O `TypeError` interrompia a ligação de **todos** os eventos
+seguintes, e a página inteira ficava inerte, em silêncio. Nenhum teste via
+isso porque todos abriam o arquivo local, onde esse caminho não roda. O
+ambiente em que um defeito mora precisa ser um ambiente testado.
+
+Daí também duas defesas no próprio leitor: as ligações de evento passam por um
+ajudante que tolera elemento ausente (um botão faltante não pode derrubar o
+resto), e um ouvinte de erro num bloco de script anterior mostra na tela
+qualquer falha de partida, inclusive de sintaxe. A versão aparece no rodapé da
+estante, para não haver dúvida sobre qual código está rodando.
+
+
 
 ```bash
 python3 -m pip install playwright && python3 -m playwright install chromium
 python3 test_sincronia_navegador.py
+python3 test_disco_efemero.py
+python3 test_como_artifact.py
 ```
 
 ---
@@ -425,6 +447,8 @@ epub_reader/
 ├── porta.py          # senha, cookie de sessão e freio de tentativas
 ├── segredos.py       # gera senha, token e chave para a nuvem
 ├── test_disco_efemero.py  # apaga o disco do servidor e vê os aparelhos o refazerem
+├── test_como_artifact.py  # o leitor de pé publicado e solto
+├── livro_de_capa.py  # gera um EPUB que começa pela capa, como os de editora
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem
 ├── moldura-celular.html  # doctype, charset, viewport e as metas de tela cheia
