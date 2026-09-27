@@ -64,6 +64,10 @@ jobs:
         working-directory: epub_reader
         run: python3 test_memoria.py
 
+      - name: Séries, com uma fronteira por volume
+        working-directory: epub_reader
+        run: python3 test_serie.py
+
       - name: O servidor perdendo o disco inteiro
         working-directory: epub_reader
         run: python3 test_disco_efemero.py

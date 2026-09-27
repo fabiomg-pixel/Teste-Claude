@@ -928,6 +928,23 @@
         <span aria-hidden="true">🔎</span> Crítica e contexto da obra
       </button>
       <p class="vazio" id="nota-critica" style="padding:.45rem .3rem 0"></p>
+      <button class="ficha" id="abrir-serie" aria-pressed="false" style="margin-top:.4rem">
+        <span aria-hidden="true">📚</span> Incorporar os volumes anteriores
+      </button>
+      <p class="vazio" id="nota-serie" style="padding:.45rem .3rem 0"></p>
+      <div class="fileira oculto" id="forma-serie" style="gap:.5rem;padding:.3rem 0 0">
+        <label class="vazio" style="flex:2">Série
+          <input class="campo" id="campo-serie" placeholder="nome da série"
+                 autocomplete="off" style="min-height:0;margin-top:.25rem">
+        </label>
+        <label class="vazio" style="flex:1">Volume
+          <input class="campo" id="campo-volume" type="number" min="1" step="1"
+                 inputmode="numeric" style="min-height:0;margin-top:.25rem">
+        </label>
+      </div>
+      <button class="acao secundaria oculto" id="salvar-serie"
+              style="margin:.4rem .3rem 0">Guardar a série deste livro</button>
+
       <p class="vazio" id="estado-memoria" style="padding:.45rem .3rem 0"></p>
       <button class="acao secundaria oculto" id="completar-memoria"
               style="margin:.4rem .3rem 0">Resumir os capítulos que faltam</button>
@@ -1027,7 +1044,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 17;
+  const VERSAO = 18;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -1686,6 +1703,8 @@ setTimeout(function () {
     selecionado: '',
     modoPergunta: 'perguntar',
     critica: estado.ler('leitor.critica', false),
+    incorporarSerie: estado.ler('leitor.serie.incorporar', true),
+    serie: null,         // { nome, volume, anteriores: [...] } — ver prepararSerie
     resumos: {},         // { <índice do capítulo>: {ate, texto, em} }
   };
 
@@ -2201,6 +2220,16 @@ setTimeout(function () {
       '',
     ];
 
+    if (abertura && abertura.serie) {
+      linhas.push(
+        'SÉRIE: este livro é um volume de uma série, e eu já li os volumes',
+        'anteriores. O resumo deles vem abaixo e você pode usá-los sem reserva —',
+        'a REGRA ABSOLUTA vale para o volume que estou lendo AGORA, não para os',
+        'que já terminei. Se um volume anterior tiver sido lido só em parte, o',
+        'resumo diz até onde, e daí para frente ele também é proibido.',
+        '');
+    }
+
     if (abertura && abertura.critica) {
       linhas.push(
         'CONHECIMENTO EXTERNO: liberado, inclusive sobre ESTA obra — leitura crítica,',
@@ -2268,7 +2297,8 @@ setTimeout(function () {
      app) e a mensagem com o recorte do livro. A versão para copiar é apenas
      a junção das duas. */
   function montarPedido() {
-    const sistema = regras({ critica: app.critica });
+    const daSerie = textoDaSerie();
+    const sistema = regras({ critica: app.critica, serie: daSerie.length > 0 });
     if (!app.livro) return { sistema, mensagem: '', pergunta: '' };
     const pergunta = $('pergunta').value.trim();
     const tarefa = TAREFAS[app.modoPergunta] || '';
@@ -2289,6 +2319,8 @@ setTimeout(function () {
       const parcial = c.ultimo > app.fronteira ? ' (li só uma parte)' : '';
       partes.push('- Cap. ' + (c.indice + 1) + ': ' + c.titulo + parcial);
     });
+
+    daSerie.forEach((l) => partes.push(l));
 
     /* A memória longa. Sem ela o modelo só vê o fim do que foi lido, e um
        romance de trinta capítulos vira os três últimos. */
@@ -2356,9 +2388,42 @@ setTimeout(function () {
     }
   }
 
+  function desenharSerie() {
+    const nota = $('nota-serie');
+    const botao = $('abrir-serie');
+    if (!nota || !botao) return;
+    const s = app.serie;
+    const comResumo = s ? s.anteriores.filter((a) => a.capitulos.length) : [];
+
+    botao.setAttribute('aria-pressed', String(!!(app.incorporarSerie && comResumo.length)));
+    botao.classList.toggle('oculto', !comResumo.length);
+
+    if (!s) {
+      nota.textContent = 'Este livro não está em nenhuma série. Se ele é volume de '
+        + 'uma, diga qual e qual o número — os volumes anteriores que estiverem na '
+        + 'sua estante entram na conversa.';
+    } else if (!s.anteriores.length) {
+      nota.textContent = 'Série «' + s.nome + '», volume ' + s.volume
+        + '. Nenhum volume anterior na estante ainda.';
+    } else if (!comResumo.length) {
+      nota.textContent = 'Série «' + s.nome + '», volume ' + s.volume + '. Achei '
+        + s.anteriores.length + ' volume(s) anterior(es), mas sem resumo de capítulo '
+        + 'nenhum — abra cada um e toque em «resumir os capítulos que faltam».';
+    } else {
+      const quais = comResumo.map((a) => 'vol. ' + a.volume + ' («' + a.titulo + '», '
+        + a.capitulos.length + ' capítulos'
+        + (a.pct < 97 ? ', lido até ' + a.pct + '%' : '') + ')').join('; ');
+      nota.textContent = app.incorporarSerie
+        ? 'Ligado: ' + quais + ' entram na conversa. A fronteira do volume que você '
+          + 'está lendo continua valendo.'
+        : 'Desligado. Disponíveis para incorporar: ' + quais + '.';
+    }
+  }
+
   function atualizarPrevia() {
     if (!app.livro) return;
     desenharAbertura();
+    desenharSerie();
     memoria.desenhar();
     desenharCusto();
     const texto = montarPacote();
@@ -3181,6 +3246,93 @@ setTimeout(function () {
   };
 
   /* ================================================================== *
+   * 5e. Séries: os volumes anteriores entram na conversa
+   *
+   * Uma trilogia lida em ordem é um só livro longo para quem lê, e três ilhas
+   * para o leitor. Falar do volume 3 sem poder mencionar o 1 e o 2 é o mesmo
+   * defeito da memória curta, numa escala maior.
+   *
+   * Duas decisões fazem isto caber:
+   *
+   * O número é a ordem. Em vez de uma tela para arrastar volumes, cada livro
+   * declara «série X, volume N» — que é como as pessoas pensam, e dispensa
+   * interface de ordenação num aparelho de bolso.
+   *
+   * Cada volume entra pelos resumos, até a fronteira DELE PRÓPRIO. Mandar o
+   * texto de dois romances seriam duzentos mil tokens por pergunta; os resumos
+   * põem um volume inteiro em algumas páginas. E um volume abandonado na metade
+   * entra até a metade — a fronteira não é do livro em uso, é de cada livro.
+   * ================================================================== */
+
+  const CAMINHO_SERIES = 'series.json';
+
+  function fichaDaSerie(imp) {
+    const todas = estado.ler('leitor.series', {});
+    return todas[imp] || null;
+  }
+
+  function guardarFichaDaSerie(imp, ficha) {
+    const todas = estado.ler('leitor.series', {});
+    if (ficha) todas[imp] = Object.assign({ em: Date.now() / 1000 }, ficha);
+    else delete todas[imp];
+    estado.gravar('leitor.series', todas);
+  }
+
+  /* Monta o texto dos volumes anteriores uma vez, e não a cada pergunta: exige
+     ler a estante inteira do IndexedDB, o que montarPedido não pode fazer por
+     ser síncrono. Fica em app.serie até algo mudar. */
+  async function prepararSerie() {
+    app.serie = null;
+    if (!app.livro) return;
+    const registro = await guarda.pegar(app.livro.id);
+    const minha = registro && registro.impressao ? fichaDaSerie(registro.impressao) : null;
+    if (!minha || !minha.nome) return;
+
+    const lista = await guarda.listar();
+    const anteriores = [];
+    for (const r of lista) {
+      if (!r.impressao || r.id === app.livro.id) continue;
+      const f = fichaDaSerie(r.impressao);
+      if (!f || f.nome !== minha.nome) continue;
+      if (!(f.volume < minha.volume)) continue;
+
+      const marcador = estado.ler(chaveDoLivro(r.id), { fronteira: 0 });
+      const resumos = estado.ler(chaveResumos(r.id), {});
+      const indices = Object.keys(resumos).map(Number).sort((a, b) => a - b);
+      const pct = r.totalBlocos
+        ? Math.round(((marcador.fronteira || 0) + 1) / r.totalBlocos * 100) : 0;
+      anteriores.push({
+        volume: f.volume, titulo: r.titulo || '(sem título)', autor: r.autor || '',
+        pct, capitulos: indices.map((i) => ({ i, texto: resumos[i].texto })),
+      });
+    }
+    anteriores.sort((a, b) => a.volume - b.volume);
+    app.serie = { nome: minha.nome, volume: minha.volume, anteriores };
+  }
+
+  /* O texto que vai no pedido. Vazio quando não há o que mandar — um volume
+     anterior sem resumo nenhum não tem como entrar, e dizer «existe um volume 1
+     que eu não sei resumir» só confundiria o modelo. */
+  function textoDaSerie() {
+    const s = app.serie;
+    if (!s || !app.incorporarSerie) return [];
+    const uteis = s.anteriores.filter((a) => a.capitulos.length);
+    if (!uteis.length) return [];
+
+    const partes = ['', '## Volumes anteriores desta série',
+      'Série «' + s.nome + '»; estou lendo o volume ' + s.volume + '. Os volumes',
+      'abaixo eu já li, e você pode falar deles à vontade — o que segue é o resumo',
+      'que eu fiz de cada capítulo, na ordem.'];
+    uteis.forEach((a) => {
+      partes.push('', '### Volume ' + a.volume + ' — «' + a.titulo + '»'
+        + (a.autor ? ', de ' + a.autor : '')
+        + (a.pct < 97 ? ' (deste eu li só ' + a.pct + '%, e o resumo para aí)' : ''));
+      a.capitulos.forEach((c) => partes.push('Cap. ' + (c.i + 1) + ': ' + c.texto));
+    });
+    return partes;
+  }
+
+  /* ================================================================== *
    * 5c. Sincronização entre aparelhos
    *
    * O servidor guarda o estado e, se você quiser, o próprio EPUB. Cada
@@ -3527,6 +3679,31 @@ setTimeout(function () {
       });
     },
 
+    /* As séries são uma só tabela para toda a biblioteca, não uma por livro:
+       quem declara «volume 2 de X» precisa que o outro aparelho veja o mesmo
+       nome, senão os volumes não se encontram. Mescla pela marca de tempo. */
+    async sincronizarSeries(minhas) {
+      return this.gravar(async (arvore) => {
+        const guardado = (await github.lerJson(arvore, CAMINHO_SERIES)) || { livros: {} };
+        const remotas = guardado.livros || {};
+        const juntas = Object.assign({}, remotas);
+        Object.keys(minhas || {}).forEach((imp) => {
+          const minha = minhas[imp];
+          const dela = juntas[imp];
+          if (!dela || (minha.em || 0) > (dela.em || 0)) juntas[imp] = minha;
+        });
+        if (JSON.stringify(remotas) === JSON.stringify(juntas)) {
+          return { mudancas: [], resultado: juntas };
+        }
+        return {
+          mudancas: [{ caminho: CAMINHO_SERIES,
+                       texto: JSON.stringify({ livros: juntas }, null, 1) }],
+          resultado: juntas,
+          mensagem: 'Leitor: séries',
+        };
+      });
+    },
+
     async sincronizarEstado(imp, meuEstado, titulo) {
       return this.gravar(async (arvore, indice) => {
         const remoto = await github.lerJson(arvore, CAMINHO_ESTADO(imp));
@@ -3834,7 +4011,9 @@ setTimeout(function () {
       aplicarEstado(registro.id, mesclado);
 
       /* A memória de capítulos, se este aparelho tem alguma ou o repositório
-         tem. Um livro sem resumo nenhum dos dois lados não gasta uma chamada. */
+         tem. Um livro sem resumo nenhum dos dois lados não gasta uma chamada.
+         (As séries vão numa vez só, depois do laço: são uma tabela da
+         biblioteca inteira e não uma coisa por livro.) */
       const meusResumos = estado.ler(chaveResumos(registro.id), {});
       const emUso = app.livro && app.livro.id === registro.id;
       if (Object.keys(meusResumos).length || emUso) {
@@ -3843,6 +4022,11 @@ setTimeout(function () {
         if (emUso) { app.resumos = juntos; memoria.desenhar(); }
       }
     }
+
+    const minhasSeries = estado.ler('leitor.series', {});
+    const juntas = await biblioteca.sincronizarSeries(minhasSeries);
+    estado.gravar('leitor.series', juntas);
+    if (app.livro) { await prepararSerie(); desenharSerie(); }
   }
 
   async function rodadaNoServidor() {
@@ -4018,6 +4202,7 @@ setTimeout(function () {
     app.bloco = marcador.bloco || 0;
     app.fronteira = Math.max(marcador.fronteira || 0, app.bloco);
     app.resumos = estado.ler(chaveResumos(id), {});
+    prepararSerie();
     app.marcas = marcador.marcas || [];
     app.posicaoEm = marcador.posicaoEm || 0;
     $('obra-titulo').textContent = livro.meta.titulo || '';
@@ -4243,6 +4428,54 @@ setTimeout(function () {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
+  ao('abrir-serie', 'click', () => {
+    app.incorporarSerie = !app.incorporarSerie;
+    estado.gravar('leitor.serie.incorporar', app.incorporarSerie);
+    atualizarPrevia();
+    aviso(app.incorporarSerie
+      ? 'Volumes anteriores incorporados'
+      : 'Só este volume');
+  });
+
+  /* Os campos da série ficam escondidos até alguém querer mexer: no caso comum
+     (livro solto) eles são ruído na tela. */
+  ao('nota-serie', 'click', () => {
+    const forma = $('forma-serie');
+    forma.classList.remove('oculto');
+    $('salvar-serie').classList.remove('oculto');
+    if (app.serie) {
+      $('campo-serie').value = app.serie.nome;
+      $('campo-volume').value = app.serie.volume;
+    }
+    $('campo-serie').focus();
+  });
+
+  ao('salvar-serie', 'click', async () => {
+    if (!app.livro) return;
+    const registro = await guarda.pegar(app.livro.id);
+    if (!registro || !registro.impressao) {
+      aviso('Este livro ainda não tem impressão digital — sincronize uma vez.');
+      return;
+    }
+    const nome = $('campo-serie').value.trim();
+    const volume = parseInt($('campo-volume').value, 10);
+    if (!nome) {
+      guardarFichaDaSerie(registro.impressao, null);
+      aviso('Este livro saiu da série');
+    } else if (!Number.isFinite(volume) || volume < 1) {
+      aviso('Diga o número do volume (1, 2, 3…).');
+      return;
+    } else {
+      guardarFichaDaSerie(registro.impressao, { nome, volume });
+      aviso('Série guardada: ' + nome + ', volume ' + volume);
+    }
+    $('forma-serie').classList.add('oculto');
+    $('salvar-serie').classList.add('oculto');
+    await prepararSerie();
+    atualizarPrevia();
+    if (sincronia.ligada) sincronizarTudo(true);
+  });
+
   ao('teto-copiar', 'click', () => { desenharTeto(null); copiarPacote(); });
   ao('teto-seguir', 'click', () => { desenharTeto(null); enviarPergunta(true); });
   ao('teto-ajustar', 'click', () => {
@@ -4413,6 +4646,8 @@ setTimeout(function () {
                             motorNavegador, montarPedido, app, memoria,
                             desenharCusto, contaDoMes, contabilizar,
                             tetos, barrado, estimarPergunta,
+                            prepararSerie, textoDaSerie, guardarFichaDaSerie,
+                            desenharSerie, fichaDaSerie,
                             estado, guarda, VERSAO });
   }
 

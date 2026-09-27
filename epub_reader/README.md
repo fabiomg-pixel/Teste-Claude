@@ -141,6 +141,31 @@ modelo da conversa: resumir é extração, e um romance de trinta capítulos sai
 centavos. Sonnet e não Haiku porque um resumo ruim envenena toda resposta futura
 que o use. A mescla entre aparelhos é por capítulo, e o mais adiantado ganha.
 
+### Trilogias: os volumes anteriores na conversa
+
+Uma trilogia lida em ordem é um livro longo para quem lê, e três ilhas para o
+leitor. O botão **📚 Incorporar os volumes anteriores** junta as ilhas.
+
+Você declara a série pelo próprio livro: nome e número do volume. **O número é a
+ordem** — em vez de uma tela para arrastar volumes, que num aparelho de bolso é
+sofrimento, cada livro diz «volume 2 de X», que é como as pessoas pensam. A
+tabela vai para `series.json` no repositório, porque os dois aparelhos precisam
+ver o mesmo nome, senão os volumes não se encontram.
+
+Cada volume anterior entra **pelos resumos de capítulo, até a fronteira dele
+próprio**. Duas consequências:
+
+- Mandar o texto de dois romances seriam duzentos mil tokens por pergunta; os
+  resumos põem um volume inteiro em algumas páginas. Sem a memória por capítulo
+  esta feature não existiria.
+- Um volume que você **abandonou na metade** entra até a metade, e o contexto diz
+  «deste eu li só 52%, e o resumo para aí». A fronteira não é do livro em uso: é
+  de cada livro. É o caso que um código descuidado erra, tratando «volume
+  anterior» como «volume lido», e o teste monta exatamente essa situação.
+
+A regra que vai ao modelo é explícita: a REGRA ABSOLUTA vale para o volume que
+está sendo lido agora, não para os que já terminaram.
+
 ### O que isto custa, e dois limites
 
 A folha de perguntar mostra o custo da última pergunta e o acumulado do mês, por
@@ -522,7 +547,7 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E seis testes de navegador, todos precisando do Playwright:
+E sete testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
@@ -532,6 +557,7 @@ E seis testes de navegador, todos precisando do Playwright:
 | `test_github.py` | a biblioteca no GitHub e a tela de conexão, contra uma API falsa |
 | `test_conversa.py` | a conversa com a API da Anthropic — e a fronteira anti-spoiler agora que o recorte atravessa a rede |
 | `test_memoria.py` | os resumos por capítulo, e o que a memória não pode deixar entrar |
+| `test_serie.py` | trilogias — três fronteiras ao mesmo tempo, uma por volume |
 
 O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
 usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
@@ -567,6 +593,7 @@ python3 test_como_artifact.py
 python3 test_github.py
 python3 test_conversa.py
 python3 test_memoria.py
+python3 test_serie.py
 ```
 
 Tudo isso roda a cada empurrão, em
