@@ -55,9 +55,14 @@ window.Reader = (function () {
     return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
   }
 
+  // Capítulos sem nenhum bloco de texto (capa, rosto, folha de guarda) ficam
+  // com last_block < first_block. Precisam ficar de fora: senão a capa
+  // reivindica o bloco 0, que na verdade está no capítulo seguinte, e o livro
+  // abre numa página em branco.
   function chapterOfBlock(block) {
     for (const ch of state.chapters) {
-      if (block >= ch.first_block && block <= Math.max(ch.last_block, ch.first_block)) return ch;
+      if (ch.last_block < ch.first_block) continue;
+      if (block >= ch.first_block && block <= ch.last_block) return ch;
     }
     return state.chapters[state.chapters.length - 1] || null;
   }

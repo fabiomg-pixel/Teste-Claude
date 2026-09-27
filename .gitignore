@@ -52,3 +52,4 @@ Thumbs.db
 # Leitor de EPUB
 epub_reader/data/
 epub_reader/.venv/
+epub_reader/*.epub

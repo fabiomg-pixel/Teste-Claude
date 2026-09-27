@@ -287,7 +287,12 @@ def position_label(content: dict, boundary: int) -> dict:
     total = max(content["total_blocks"], 1)
     chapter = None
     for ch in content["chapters"]:
-        if ch["first_block"] <= boundary <= max(ch["last_block"], ch["first_block"]):
+        # Capítulos sem bloco nenhum (capa, rosto) ficam com last < first. Sem
+        # este corte a capa reivindica o bloco 0 e o modelo é informado de que
+        # o leitor está "na capa" quando ele está no primeiro capítulo.
+        if ch["last_block"] < ch["first_block"]:
+            continue
+        if ch["first_block"] <= boundary <= ch["last_block"]:
             chapter = ch
             break
     if chapter is None:

@@ -204,6 +204,24 @@ class LeitorTests(unittest.TestCase):
                 self.assertNotIn(block["t"][:30], context, f"vazou o bloco {block['i']}")
         self.assertIn("Ostende", context)
 
+    def test_capa_sem_texto_nao_rouba_o_primeiro_bloco(self):
+        """Um capítulo sem bloco nenhum — capa, rosto — não pode ser a posição.
+
+        Ele fica com last_block < first_block, e sem o corte reivindica o bloco
+        0: o leitor abriria numa página em branco e o modelo seria informado de
+        que a pessoa está «na capa».
+        """
+        conteudo = {
+            "total_blocks": 4,
+            "chapters": [
+                {"index": 0, "title": "Capa", "first_block": 0, "last_block": -1},
+                {"index": 1, "title": "Capítulo 1", "first_block": 0, "last_block": 3},
+            ],
+        }
+        onde = assistant.position_label(conteudo, 0)
+        self.assertEqual(onde["chapter_title"], "Capítulo 1")
+        self.assertEqual(onde["chapter_index"], 1)
+
     def test_fronteira_e_limitada_pelo_servidor(self):
         self.client.post(f"/api/books/{self.book_id}/progress", json={"block": 5})
         book = store.get_book(self.book_id)

@@ -1752,8 +1752,14 @@
     else if (app.capitulo.indice > 0) abrirCapitulo(app.capitulo.indice - 1, { ultima: true });
   }
 
+  /* Capítulos sem nenhum bloco de texto — a capa, uma página de rosto, uma
+     folha de guarda — existem e são numerados, mas não contêm bloco nenhum:
+     ficam com `ultimo` menor que `primeiro`. Eles precisam ficar de fora desta
+     busca, senão a capa reivindica o bloco 0 (o primeiro do livro, que na
+     verdade está no capítulo seguinte) e o livro abre numa página em branco. */
   function capituloDoBloco(bloco) {
-    return app.livro.capitulos.find((c) => bloco >= c.primeiro && bloco <= Math.max(c.ultimo, c.primeiro))
+    return app.livro.capitulos.find(
+      (c) => c.ultimo >= c.primeiro && bloco >= c.primeiro && bloco <= c.ultimo)
       || app.livro.capitulos[app.livro.capitulos.length - 1];
   }
 
