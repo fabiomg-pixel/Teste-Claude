@@ -78,10 +78,28 @@ tratamento de erro existem uma vez só. No artifact publicado não há transport
 nenhum: o CSP bloqueia a chamada, e lá vale o copiar-e-colar, que continua
 inteiro como reserva em todos os casos.
 
-O modelo padrão é o `claude-opus-5`; Sonnet 5 e Haiku 4.5 ficam a um toque. Se um
-modelo recusar o pedido completo (a página pede raciocínio adaptativo, para ter o
-que mostrar enquanto a resposta não vem), o leitor desce para o pedido mínimo,
-responde, e lembra da escolha — em vez de deixar a conversa morta.
+O modelo padrão é o `claude-opus-5-5`: sucede o Opus 5 na mesma linha, com a
+mesma janela de contexto, e custa menos — US$ 4/20 por milhão de tokens contra
+5/25. Opus 5, Sonnet 5 e Haiku 4.5 ficam a um toque.
+
+Duas descidas automáticas, porque a pior falha é a conversa que morre sem
+explicação:
+
+- **Conta sem o Opus 5.5** (ele é recente): o leitor cai no Opus 5 sozinho, avisa
+  numa linha, e lembra.
+- **Parâmetro recusado** pelo modelo escolhido: o pedido completo pede raciocínio
+  adaptativo com `effort: medium` e resumo do raciocínio visível; se algum modelo
+  não aceitar, o leitor desce para o pedido mínimo, responde, e lembra.
+
+O esforço é fixado explicitamente porque o padrão muda entre modelos — `medium` no
+Opus 5.5, `high` no Opus 5 — e a conversa deve se comportar igual qualquer que
+seja a escolha. `max_tokens` é 16 000, não 4 096: **o raciocínio conta para esse
+teto mesmo sem voltar como texto**, e um valor dimensionado para um pedido sem
+raciocínio corta a resposta no meio da frase.
+
+Recusa de classificador (uma trama com peste ou veneno não é pesquisa de
+biologia, mas o classificador não lê romances) vai com `fallbacks: "default"`: a
+API tenta noutro modelo em vez de a conversa parar.
 
 O APK (veja [`android/`](../android/)) é uma casca de WebView em volta desse
 mesmo arquivo: a página detecta a ponte nativa e troca o copiar-e-colar por

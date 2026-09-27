@@ -865,6 +865,7 @@
       </p>
       <input type="password" class="campo" id="campo-chave" placeholder="sk-ant-…" autocomplete="off" style="min-height:0">
       <div class="fileira" style="margin:.6rem 0">
+        <button class="ficha" data-modelo="claude-opus-5-5">Opus 5.5</button>
         <button class="ficha" data-modelo="claude-opus-5">Opus 5</button>
         <button class="ficha" data-modelo="claude-sonnet-5">Sonnet 5</button>
         <button class="ficha" data-modelo="claude-haiku-4-5">Haiku 4.5</button>
@@ -977,7 +978,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 13;
+  const VERSAO = 14;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -2323,8 +2324,19 @@ setTimeout(function () {
   };
 
   const API_ANTHROPIC = 'https://api.anthropic.com/v1/messages';
-  const MODELO_PADRAO = 'claude-opus-5';
-  const TETO_RESPOSTA = 4096;
+
+  /* O Opus 5.5 é o sucessor do Opus 5 na mesma linha e custa menos — US$ 4/20
+     por milhão de tokens contra 5/25 — com a mesma janela de contexto. Não há
+     por que pagar mais pelo anterior. Mas ele é recente, e uma conta que ainda
+     não o tenha receberia um erro seco: daí a reserva, escolhida sozinha na
+     primeira recusa e lembrada depois. */
+  const MODELO_PREFERIDO = 'claude-opus-5-5';
+  const MODELO_RESERVA = 'claude-opus-5';
+
+  /* O raciocínio conta para o max_tokens mesmo sem voltar como texto. Com 4096,
+     que era o valor daqui, uma pergunta que fizesse o modelo pensar um pouco
+     gastava o teto pensando e a resposta saía cortada no meio da frase. */
+  const TETO_RESPOSTA = 16000;
 
   /* Lê uma resposta em Server-Sent Events. Um pedaço da rede não respeita
      fronteira de evento: pode cortar no meio de um JSON, e emendar às cegas
@@ -2350,25 +2362,36 @@ setTimeout(function () {
     }
   }
 
-  async function motivoDoErro(resposta) {
+  /* Lê a queixa da API uma vez e devolve o que interessa: a mensagem para a
+     pessoa, e se dá para tentar de novo pedindo menos. O corpo de uma resposta
+     só pode ser lido uma vez, então classificar aqui evita ler duas. */
+  async function queixaDaAPI(resposta) {
     let detalhe = '';
     try {
       const corpo = await resposta.json();
       detalhe = (corpo.error && corpo.error.message) || '';
     } catch (e) { /* sem corpo */ }
-    if (resposta.status === 401) {
-      return 'A Anthropic recusou a chave. Confira se ela está inteira e ativa.';
-    }
-    if (resposta.status === 400 && /credit|balance/i.test(detalhe)) {
-      return 'A conta da API está sem crédito. Recarregue em console.anthropic.com.';
-    }
-    if (resposta.status === 429) {
-      return 'Limite de uso da sua conta atingido. Tente daqui a pouco.';
-    }
-    if (resposta.status === 529 || resposta.status >= 500) {
-      return 'A API está sobrecarregada agora. Tente de novo em instantes.';
-    }
-    return 'A API respondeu ' + resposta.status + (detalhe ? ': ' + detalhe : '');
+    const st = resposta.status;
+
+    let texto;
+    if (st === 401) texto = 'A Anthropic recusou a chave. Confira se ela está inteira e ativa.';
+    else if (st === 400 && /credit|balance/i.test(detalhe)) {
+      texto = 'A conta da API está sem crédito. Recarregue em console.anthropic.com.';
+    } else if (st === 429) texto = 'Limite de uso da sua conta atingido. Tente daqui a pouco.';
+    else if (st === 529 || st >= 500) {
+      texto = 'A API está sobrecarregada agora. Tente de novo em instantes.';
+    } else texto = 'A API respondeu ' + st + (detalhe ? ': ' + detalhe : '');
+
+    return {
+      status: st,
+      texto,
+      /* «este modelo não existe para você» — conta sem acesso, ou nome que a
+         API não conhece. Distinto de um parâmetro recusado. */
+      modeloAusente: st === 404 ||
+        ((st === 400 || st === 403) && /model/i.test(detalhe)
+         && !/thinking|effort|fallback|beta|credit|balance/i.test(detalhe)),
+      parametroRecusado: st === 400 && !/credit|balance/i.test(detalhe),
+    };
   }
 
   const motorNavegador = {
@@ -2379,78 +2402,102 @@ setTimeout(function () {
     mudar(campo, valor) { const f = this.ficha; f[campo] = valor; this.ficha = f; },
 
     temChave() { return !!this.ficha.chave; },
-    modelo() { return this.ficha.modelo || MODELO_PADRAO; },
+    modelo() { return this.ficha.modelo || MODELO_PREFERIDO; },
     salvarChave(c) { this.mudar('chave', c); },
     apagarChave() { this.mudar('chave', ''); },
     salvarModelo(m) { this.mudar('modelo', m); },
 
     /* Nunca rejeita: a conversa inteira reporta falha por __ponte.erro, e uma
        promessa rejeitada aqui não seria vista por ninguém — o balão ficaria
-       «pensando» para sempre. */
+       «pensando» para sempre.
+
+       Nota para quem mexer aqui depois: o histórico enviado tem só texto, nunca
+       os blocos de raciocínio que a resposta traz. É o que nos põe fora do
+       alcance do «preserved thinking» — a regra que invalida um bloco de
+       raciocínio replayado quando o começo da conversa mudou. E o começo aqui
+       muda de propósito: a pergunta antiga é reenviada como rótulo, sem o
+       recorte do livro. Voltar a mandar blocos de raciocínio exigiria repensar
+       isso. */
     async perguntar(id, sistema, mensagens) {
-      const ficha = this.ficha;
-      let completo = ficha.pedido !== 'simples';
-      const corpo = () => {
-        const c = {
-          model: this.modelo(),
-          max_tokens: TETO_RESPOSTA,
-          system: sistema,
-          messages: mensagens,
-          stream: true,
-        };
-        if (completo) {
-          /* Pensar ajuda numa pergunta sobre um livro, e o resumo do raciocínio
-             dá o que mostrar enquanto o texto não vem — sem ele a espera é uma
-             tela parada. */
-          c.thinking = { type: 'adaptive', display: 'summarized' };
-          c.fallbacks = 'default';
-        }
-        return JSON.stringify(c);
-      };
-      const cabecalhos = () => {
-        const h = {
-          'content-type': 'application/json',
-          'x-api-key': ficha.chave,
-          'anthropic-version': '2023-06-01',
-          /* Sem este cabeçalho a API recusa qualquer pedido vindo de um
-             navegador. O nome assusta de propósito, e com razão: ele só se
-             defende quando a chave é de quem está usando a página e mora no
-             aparelho dela. É o nosso caso — e é por isso que a chave nunca
-             entra no repositório nem em lugar algum que eu escreva. */
-          'anthropic-dangerous-direct-browser-access': 'true',
-        };
-        if (completo) h['anthropic-beta'] = 'server-side-fallback-2026-07-01';
-        return h;
-      };
-
       try {
-        let resposta = await fetch(API_ANTHROPIC,
-          { method: 'POST', headers: cabecalhos(), body: corpo() });
+        for (let volta = 0; volta < 4; volta++) {
+          const ficha = this.ficha;
+          const completo = ficha.pedido !== 'simples';
+          const modelo = this.modelo();
 
-        /* Um 400 no pedido completo quase sempre é um parâmetro que este modelo
-           ou esta conta não aceitam. Deixar a conversa morta por causa disso
-           seria o pior desfecho: desce para o pedido mínimo, e lembra — senão
-           tentaria o caminho errado a cada pergunta. */
-        if (resposta.status === 400 && completo) {
-          completo = false;
-          this.mudar('pedido', 'simples');
-          resposta = await fetch(API_ANTHROPIC,
-            { method: 'POST', headers: cabecalhos(), body: corpo() });
-        }
-        if (!resposta.ok) throw new Error(await motivoDoErro(resposta));
-
-        let motivo = null;
-        await correnteSSE(resposta, (ev) => {
-          if (ev.type === 'content_block_delta' && ev.delta) {
-            if (ev.delta.type === 'text_delta') window.__ponte.delta(id, ev.delta.text);
-            else if (ev.delta.type === 'thinking_delta') window.__ponte.pensando(id, ev.delta.thinking);
-          } else if (ev.type === 'message_delta' && ev.delta) {
-            motivo = ev.delta.stop_reason || motivo;
-          } else if (ev.type === 'error') {
-            throw new Error((ev.error && ev.error.message) || 'a API interrompeu a resposta');
+          const corpo = {
+            model: modelo,
+            max_tokens: TETO_RESPOSTA,
+            system: sistema,
+            messages: mensagens,
+            stream: true,
+          };
+          const cabecalhos = {
+            'content-type': 'application/json',
+            'x-api-key': ficha.chave,
+            'anthropic-version': '2023-06-01',
+            /* Sem este cabeçalho a API recusa qualquer pedido vindo de um
+               navegador. O nome assusta de propósito, e com razão: ele só se
+               defende quando a chave é de quem está usando a página e mora no
+               aparelho dela. É o nosso caso — e é por isso que a chave nunca
+               entra no repositório nem em lugar algum que eu escreva. */
+            'anthropic-dangerous-direct-browser-access': 'true',
+          };
+          if (completo) {
+            /* Pensar ajuda numa pergunta sobre um livro, e o resumo do
+               raciocínio dá o que mostrar enquanto o texto não vem — sem ele a
+               espera é uma tela parada. Esforço explícito porque o padrão
+               difere entre modelos: no Opus 5.5 é «medium», no Opus 5 é
+               «high». Fixar aqui é o que faz a conversa se comportar igual
+               qualquer que seja o modelo escolhido. */
+            corpo.thinking = { type: 'adaptive', display: 'summarized' };
+            corpo.output_config = { effort: 'medium' };
+            /* Um classificador pode recusar um pedido sobre um romance — uma
+               trama com peste ou veneno não é pesquisa de biologia, mas o
+               classificador não lê romances. Com isto a API tenta noutro
+               modelo em vez de a conversa morrer numa recusa. */
+            corpo.fallbacks = 'default';
+            cabecalhos['anthropic-beta'] = 'server-side-fallback-2026-07-01';
           }
-        });
-        window.__ponte.fim(id, motivo);
+
+          const resposta = await fetch(API_ANTHROPIC,
+            { method: 'POST', headers: cabecalhos, body: JSON.stringify(corpo) });
+
+          if (resposta.ok) {
+            let motivo = null;
+            await correnteSSE(resposta, (ev) => {
+              if (ev.type === 'content_block_delta' && ev.delta) {
+                if (ev.delta.type === 'text_delta') window.__ponte.delta(id, ev.delta.text);
+                else if (ev.delta.type === 'thinking_delta') window.__ponte.pensando(id, ev.delta.thinking);
+              } else if (ev.type === 'message_delta' && ev.delta) {
+                motivo = ev.delta.stop_reason || motivo;
+              } else if (ev.type === 'error') {
+                throw new Error((ev.error && ev.error.message) || 'a API interrompeu a resposta');
+              }
+            });
+            window.__ponte.fim(id, motivo);
+            return;
+          }
+
+          const queixa = await queixaDaAPI(resposta);
+
+          /* Duas descidas possíveis, do mais provável ao menos: o modelo
+             preferido não existe nesta conta, ou algum parâmetro do pedido
+             completo não serve. As duas ficam lembradas — senão a cada
+             pergunta se gastaria uma recusa para redescobrir o mesmo. */
+          if (queixa.modeloAusente && modelo === MODELO_PREFERIDO) {
+            this.mudar('modelo', MODELO_RESERVA);
+            aviso('Sua conta ainda não tem o Opus 5.5; usando o Opus 5.');
+            marcarEscolhas('[data-modelo]', 'modelo', MODELO_RESERVA);
+            continue;
+          }
+          if (queixa.parametroRecusado && completo) {
+            this.mudar('pedido', 'simples');
+            continue;
+          }
+          throw new Error(queixa.texto);
+        }
+        throw new Error('A API recusou o pedido de todas as formas que eu sei tentar.');
       } catch (erro) {
         /* Uma falha de rede no navegador vem sem detalhe nenhum («Load failed»,
            «Failed to fetch»), e a causa mais comum é estar sem conexão. */

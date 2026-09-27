@@ -157,8 +157,10 @@ with sync_playwright() as p:
         falhas.append("faltou ou errou o anthropic-version")
     if cab.get("x-api-key") != CHAVE:
         falhas.append("a chave não foi no x-api-key")
-    if json.loads(corpo)["model"] != "claude-opus-5":
-        falhas.append("o modelo padrão não é o claude-opus-5")
+    if json.loads(corpo)["model"] != "claude-opus-5-5":
+        falhas.append("o modelo padrão não é o claude-opus-5-5 (o mais barato)")
+    if json.loads(corpo)["max_tokens"] < 8000:
+        falhas.append("max_tokens baixo: o raciocínio conta para ele e corta a resposta")
     if not json.loads(corpo).get("stream"):
         falhas.append("o pedido não pediu streaming")
 
@@ -177,6 +179,22 @@ with sync_playwright() as p:
         falhas.append("o histórico da conversa não foi enviado")
     if n["primeira"] > 400:
         falhas.append("a pergunta antiga foi reenviada com o recorte inteiro colado")
+
+    print("6b. uma conta sem o Opus 5.5 cai no Opus 5 sozinha, e lembra")
+    pg.evaluate("() => { window.__API.limpar(); window.__API.roteiro('semOpus55'); }")
+    perguntar(pg, "e o mar de chumbo?")
+    modelos = pg.evaluate("() => window.__API.pedidos.map(p => p.corpo.model)")
+    print("   modelos tentados:", modelos)
+    print("   respondeu:", ultima_fala(pg)[:52])
+    if modelos != ["claude-opus-5-5", "claude-opus-5"]:
+        falhas.append(f"não caiu para o Opus 5 sozinho: {modelos}")
+    if "Helena está em Ostende" not in ultima_fala(pg):
+        falhas.append("depois de cair para o Opus 5, não respondeu")
+    pg.evaluate("() => window.__API.limpar()")
+    perguntar(pg, "e depois disso?")
+    if pg.evaluate("() => window.__API.pedidos.map(p => p.corpo.model)") != ["claude-opus-5"]:
+        falhas.append("não lembrou que esta conta não tem o Opus 5.5")
+    pg.evaluate("() => { window.__API.roteiro('normal'); api.motorNavegador.salvarModelo(''); }")
 
     print("7. um modelo que não aceita o pedido completo: desce e responde")
     pg.evaluate("() => { window.__API.limpar(); window.__API.roteiro('semPensar'); }")

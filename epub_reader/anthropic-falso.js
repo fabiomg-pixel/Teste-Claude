@@ -73,6 +73,11 @@ window.__API = (function () {
     if (roteiro === 'semCredito') {
       return json({ error: { message: 'Your credit balance is too low' } }, 400);
     }
+    if (roteiro === 'semOpus55' && corpo.model === 'claude-opus-5-5') {
+      // uma conta que ainda não tem o modelo novo
+      return json({ error: { type: 'not_found_error',
+                             message: 'model: claude-opus-5-5' } }, 404);
+    }
     if (roteiro === 'semPensar' && corpo.thinking) {
       // um modelo que não aceita o pedido completo: o leitor tem de descer
       return json({ error: { message: 'thinking: unsupported for this model' } }, 400);
