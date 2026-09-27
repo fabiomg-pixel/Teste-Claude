@@ -656,7 +656,12 @@
 
   <div class="conteudo">
     <button class="abrir" id="abrir">Abrir um EPUB</button>
-    <input type="file" id="arquivo" accept=".epub,application/epub+zip" hidden>
+    <!-- Sem `accept` de propósito. No iOS o seletor decide o que fica clicável
+         casando o accept com o UTI do arquivo, e `.epub` nem sempre casa: o
+         livro aparece cinza e não há clique que o abra. Mostrar tudo e validar
+         depois (a importação já diz quando o arquivo não é um EPUB) é o que
+         funciona nos três sistemas. -->
+    <input type="file" id="arquivo" hidden>
 
     <div>
       <p class="rotulo" style="margin:.4rem 0 .6rem">Na estante</p>
@@ -2507,14 +2512,38 @@
   }
 
   async function importar(arquivo, opcoes) {
+    try {
+      return await importarMesmo(arquivo, opcoes);
+    } catch (e) {
+      // Sem isto, qualquer falha daqui para baixo vira uma promessa rejeitada
+      // que ninguém vê: a pessoa toca no livro, lê «Abrindo…» e mais nada
+      // acontece, para sempre. É melhor dizer o que houve.
+      aviso('Não consegui abrir: ' + (e && e.message ? e.message : e));
+      return null;
+    }
+  }
+
+  async function importarMesmo(arquivo, opcoes) {
+    if (!arquivo.size) {
+      throw new Error('o arquivo chegou vazio — se ele está no iCloud, '
+                    + 'abra-o uma vez no app Arquivos para baixá-lo');
+    }
     aviso('Abrindo «' + arquivo.name + '»…');
-    const buffer = await arquivo.arrayBuffer();
+    let buffer;
+    try {
+      buffer = await arquivo.arrayBuffer();
+    } catch (e) {
+      // Acontece com arquivo que mora na nuvem e ainda não desceu para o
+      // aparelho: o seletor o mostra, mas os bytes não estão aqui.
+      throw new Error('não consegui ler os bytes do arquivo. Se ele está no '
+                    + 'iCloud, abra-o uma vez no app Arquivos para baixá-lo.');
+    }
     let livro;
     try {
       livro = await abrirEpub(buffer.slice(0));
     } catch (e) {
       aviso(e.message || 'Não consegui ler este EPUB.');
-      return;
+      return null;
     }
     const id = 'l' + (arquivo.size % 1000000) + '-' + fichas(livro.meta.titulo || arquivo.name).join('').slice(0, 16);
     const impressao = await impressaoDigital(buffer.slice(0));
@@ -2812,11 +2841,23 @@
       : ' Neste navegador o armazenamento está bloqueado, então o livro vale só'
         + ' enquanto a página estiver aberta.';
   });
-  if (typeof DecompressionStream === 'undefined') {
+  /* O que o ZIP usa é o modo 'deflate-raw', que chegou aos navegadores depois
+     de 'gzip' e 'deflate'. Testar só se a API existe deixaria passar um Safari
+     que a tem sem esse modo — e aí a falha só apareceria ao abrir o livro,
+     parecendo defeito do arquivo. Melhor construir uma de verdade e ver. */
+  (function conferirDescompactacao() {
+    let motivo = '';
+    if (typeof DecompressionStream === 'undefined') {
+      motivo = 'Este navegador não descompacta arquivos ZIP.';
+    } else {
+      try { new DecompressionStream('deflate-raw'); }
+      catch (e) { motivo = 'Este navegador descompacta ZIP, mas não no modo que o EPUB usa.'; }
+    }
+    if (!motivo) return;
     $('abrir').disabled = true;
     $('abrir').textContent = 'Navegador sem suporte a EPUB';
-    aviso('Este navegador não descompacta EPUB. Use o Chrome ou o Edge atualizados.');
-  }
+    aviso(motivo + ' Atualize o sistema, ou use o Chrome ou o Edge.');
+  })();
   desenharEstante();
 })();
 </script>
