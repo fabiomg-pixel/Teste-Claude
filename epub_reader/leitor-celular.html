@@ -941,7 +941,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 9;
+  const VERSAO = 10;
 
   /* Ligar evento por id, tolerando a ausência. Um único elemento faltante
      lançava um TypeError que interrompia a ligação de TODOS os eventos
@@ -2431,6 +2431,319 @@ setTimeout(function () {
    * então o mesmo EPUB em dois aparelhos casa sozinho.
    * ================================================================== */
 
+
+  /* ================================================================== *
+   * 5b. A biblioteca num repositório privado do GitHub
+   * ================================================================== */
+
+  /* O repositório é a verdade; o navegador é cache. Some o cache e tudo
+     volta — o que não volta é o que nunca foi gravado, e por isso a gravação
+     é explícita e verificável, não um efeito colateral.
+
+     Usa a API de dados do git (blobs, árvores, commits) e não a API de
+     conteúdo: esta última só aceita arquivos até 1 MB, e um EPUB de romance
+     passa disso com folga. A de dados vai até 100 MB e, de quebra, grava
+     vários arquivos num commit só — o que torna «estado + índice» uma
+     operação atômica.
+
+     Estrutura dentro do repositório:
+
+       livros/<impressão>.epub     o arquivo, como você o abriu
+       estado/<impressão>.json     posição, fronteira, destaques
+       indice.json                 título e autor de cada um, para a estante
+                                   desenhar sem baixar livro nenhum
+  */
+
+  const API_GH = 'https://api.github.com';
+
+  const github = {
+    get config() {
+      return estado.ler('leitor.github', { dono: '', repo: '', token: '', ramo: '' });
+    },
+    set config(v) { estado.gravar('leitor.github', v); },
+    get ligado() { const c = this.config; return !!(c.dono && c.repo && c.token); },
+
+    cabecalhos(extra) {
+      return Object.assign({
+        'Authorization': 'Bearer ' + this.config.token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      }, extra || {});
+    },
+
+    async pedir(caminho, opcoes) {
+      const o = Object.assign({}, opcoes);
+      o.headers = this.cabecalhos(o.headers);
+      const resposta = await fetch(API_GH + caminho, o);
+      if (resposta.ok) return resposta;
+
+      /* Mensagens que dizem o que fazer. Um 401 mudo depois de o token
+         expirar é o tipo de falha que faz a pessoa achar que perdeu tudo. */
+      let detalhe = '';
+      try { detalhe = (await resposta.json()).message || ''; } catch (e) { /* sem corpo */ }
+      if (resposta.status === 401) {
+        throw new Error('O GitHub recusou o token. Ele pode ter expirado — '
+                      + 'gere outro e reconecte.');
+      }
+      if (resposta.status === 403 && /rate limit/i.test(detalhe)) {
+        throw new Error('Limite de chamadas do GitHub atingido. Tente daqui a pouco.');
+      }
+      if (resposta.status === 403) {
+        throw new Error('O token não tem permissão para este repositório '
+                      + '(precisa de Contents: read and write).');
+      }
+      if (resposta.status === 404) {
+        throw new Error('Repositório não encontrado — confira o nome, e se o '
+                      + 'token alcança este repositório.');
+      }
+      if (resposta.status === 409) {
+        throw new Error('O repositório está vazio. Crie-o com um README.');
+      }
+      throw new Error('GitHub respondeu ' + resposta.status
+                    + (detalhe ? ': ' + detalhe : ''));
+    },
+
+    caminhoRepo() {
+      const c = this.config;
+      return '/repos/' + encodeURIComponent(c.dono) + '/' + encodeURIComponent(c.repo);
+    },
+
+    /* Confere o acesso e descobre o ramo padrão. É o que a tela de conexão
+       chama: melhor falhar aqui, com explicação, do que na primeira leitura. */
+    async conectar(dono, repo, token) {
+      this.config = { dono, repo, token, ramo: '' };
+      const dados = await (await this.pedir(this.caminhoRepo())).json();
+      if (!dados.permissions || !dados.permissions.push) {
+        throw new Error('O token só tem leitura neste repositório. '
+                      + 'Precisa de Contents: read and write.');
+      }
+      this.config = { dono, repo, token, ramo: dados.default_branch || 'main' };
+      return { privado: !!dados.private, ramo: dados.default_branch };
+    },
+
+    // ------------------------------------------------------------ leitura
+
+    /* A cabeça do ramo, lida uma vez e carregada até a escrita. É isto que
+       torna o controle de concorrência real: o commit nasce sobre a versão
+       que nós lemos, e não sobre a atual. Reler a referência na hora de
+       gravar — que era o que eu fazia — apaga em silêncio o que outro
+       aparelho escreveu no meio. */
+    async cabeca() {
+      const ramo = this.config.ramo || 'main';
+      const ref = await (await this.pedir(
+        this.caminhoRepo() + '/git/ref/heads/' + encodeURIComponent(ramo))).json();
+      const commit = await (await this.pedir(
+        this.caminhoRepo() + '/git/commits/' + ref.object.sha)).json();
+      return { commit: ref.object.sha, arvore: commit.tree.sha };
+    },
+
+    async arvore(shaArvore) {
+      const url = this.caminhoRepo() + '/git/trees/' + shaArvore + '?recursive=1';
+      const dados = await (await this.pedir(url)).json();
+      const mapa = new Map();
+      (dados.tree || []).forEach((e) => {
+        if (e.type === 'blob') mapa.set(e.path, { sha: e.sha, tamanho: e.size });
+      });
+      return mapa;
+    },
+
+    async lerBlob(sha) {
+      const resposta = await this.pedir(this.caminhoRepo() + '/git/blobs/' + sha, {
+        headers: { 'Accept': 'application/vnd.github.raw' },
+      });
+      return new Uint8Array(await resposta.arrayBuffer());
+    },
+
+    async lerJson(arvore, caminho) {
+      const e = arvore.get(caminho);
+      if (!e) return null;
+      const bytes = await this.lerBlob(e.sha);
+      try { return JSON.parse(new TextDecoder('utf-8').decode(bytes)); }
+      catch (erro) { return null; }
+    },
+
+    // ------------------------------------------------------------ escrita
+
+    /* Um commit com todas as mudanças de uma vez. Devolve false — sem lançar —
+       quando o ramo andou desde que lemos: quem chama relê, mescla e repete.
+       É o mesmo controle de concorrência que um `git push` faz. */
+    async commitar(mudancas, mensagem, base) {
+      const ramo = this.config.ramo || 'main';
+      const itens = [];
+      for (const m of mudancas) {
+        if (m.apagar) { itens.push({ path: m.caminho, mode: '100644', type: 'blob', sha: null }); continue; }
+        const blob = await (await this.pedir(this.caminhoRepo() + '/git/blobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(m.bytes
+            ? { content: paraBase64(m.bytes), encoding: 'base64' }
+            : { content: m.texto, encoding: 'utf-8' }),
+        })).json();
+        itens.push({ path: m.caminho, mode: '100644', type: 'blob', sha: blob.sha });
+      }
+
+      const arvore = await (await this.pedir(this.caminhoRepo() + '/git/trees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_tree: base.arvore, tree: itens }),
+      })).json();
+
+      const novo = await (await this.pedir(this.caminhoRepo() + '/git/commits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: mensagem, tree: arvore.sha, parents: [base.commit] }),
+      })).json();
+
+      // Sem force: se outro aparelho gravou nesse meio-tempo, o GitHub recusa.
+      const resposta = await fetch(API_GH + this.caminhoRepo()
+                                 + '/git/refs/heads/' + encodeURIComponent(ramo), {
+        method: 'PATCH',
+        headers: this.cabecalhos({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sha: novo.sha, force: false }),
+      });
+      if (resposta.ok) return true;
+      if (resposta.status === 422) return false;      // o ramo andou; quem chama repete
+      let detalhe = '';
+      try { detalhe = (await resposta.json()).message || ''; } catch (e) { /* sem corpo */ }
+      throw new Error('Não consegui gravar no repositório: ' + (detalhe || resposta.status));
+    },
+  };
+
+  /* base64 em pedaços: String.fromCharCode com 2 milhões de argumentos
+     estoura a pilha de chamadas do navegador. */
+  function paraBase64(bytes) {
+    let texto = '';
+    const passo = 0x8000;
+    for (let i = 0; i < bytes.length; i += passo) {
+      texto += String.fromCharCode.apply(null, bytes.subarray(i, i + passo));
+    }
+    return btoa(texto);
+  }
+
+  /* ---------------------------------------------------- mescla de estados */
+
+  /* O mesmo acordo do servidor, agora no navegador, porque não há mais
+     servidor para arbitrar: a fronteira só cresce, a posição mais recente
+     vence, e as marcas se unem por id com lápides — apagar num aparelho
+     apaga em todos, e nada ressuscita. Comutativa de propósito: a ordem em
+     que os aparelhos sincronizam não pode mudar o resultado. */
+  const PRAZO_LAPIDE = 90 * 24 * 3600;
+
+  function mesclarEstados(a, b, agora) {
+    a = a || {}; b = b || {};
+    agora = agora || Date.now() / 1000;
+
+    const posA = a.posicao || { bloco: 0, em: 0 };
+    const posB = b.posicao || { bloco: 0, em: 0 };
+    const posicao = (posB.em || 0) > (posA.em || 0) ? posB : posA;
+
+    const porId = new Map();
+    [...(a.marcas || []), ...(b.marcas || [])].forEach((m) => {
+      if (!m || !m.id) return;
+      const atual = porId.get(m.id);
+      if (!atual) { porId.set(m.id, m); return; }
+      const peso = (x) => Math.max(x.apagadoEm || 0, x.em || 0);
+      if (peso(m) > peso(atual)) porId.set(m.id, m);
+    });
+
+    const marcas = [...porId.values()].filter(
+      (m) => !(m.apagadoEm && agora - m.apagadoEm > PRAZO_LAPIDE));
+    marcas.sort((x, y) => (x.bloco || 0) - (y.bloco || 0));
+
+    return {
+      fronteira: Math.max(a.fronteira || 0, b.fronteira || 0),
+      posicao: { bloco: posicao.bloco || 0, em: posicao.em || 0 },
+      marcas,
+    };
+  }
+
+  /* ------------------------------------- a biblioteca, vista pelo leitor */
+
+  const CAMINHO_LIVRO = (imp) => 'livros/' + imp + '.epub';
+  const CAMINHO_ESTADO = (imp) => 'estado/' + imp + '.json';
+
+  const biblioteca = {
+    /* O índice existe para a estante desenhar sem baixar livro nenhum: sem
+       ele, listar a biblioteca custaria alguns megabytes por vez. */
+    async indice(arvore) {
+      const guardado = await github.lerJson(arvore, 'indice.json');
+      return (guardado && guardado.livros) ? guardado : { livros: {} };
+    },
+
+    async listar() {
+      const arvore = await github.arvore((await github.cabeca()).arvore);
+      const indice = await this.indice(arvore);
+      const saida = [];
+      arvore.forEach((e, caminho) => {
+        const achado = caminho.match(/^livros\/([0-9a-f]+)\.epub$/);
+        if (!achado) return;
+        const imp = achado[1];
+        const meta = indice.livros[imp] || {};
+        saida.push({ impressao: imp, titulo: meta.titulo || '', autor: meta.autor || '',
+                     tamanho: e.tamanho, sha: e.sha });
+      });
+      return { livros: saida, arvore, indice };
+    },
+
+    async baixar(sha) { return github.lerBlob(sha); },
+
+    /* Enviar livro e estado no mesmo commit, com o índice: ou entra tudo, ou
+       não entra nada — nunca um EPUB sem título na estante dos outros. */
+    async enviarLivro(registro, meuEstado) {
+      return this.gravar(async (arvore, indice) => {
+        const imp = registro.impressao;
+        const mudancas = [];
+        if (!arvore.has(CAMINHO_LIVRO(imp))) {
+          mudancas.push({ caminho: CAMINHO_LIVRO(imp),
+                          bytes: new Uint8Array(registro.bytes) });
+        }
+        const remoto = await github.lerJson(arvore, CAMINHO_ESTADO(imp));
+        const mesclado = mesclarEstados(remoto, meuEstado);
+        mudancas.push({ caminho: CAMINHO_ESTADO(imp),
+                        texto: JSON.stringify(mesclado, null, 1) });
+        indice.livros[imp] = {
+          titulo: registro.titulo || '', autor: registro.autor || '',
+          blocos: registro.totalBlocos || 0, em: Date.now() / 1000,
+        };
+        mudancas.push({ caminho: 'indice.json', texto: JSON.stringify(indice, null, 1) });
+        return { mudancas, resultado: mesclado,
+                 mensagem: 'Leitor: ' + (registro.titulo || imp) };
+      });
+    },
+
+    async sincronizarEstado(imp, meuEstado, titulo) {
+      return this.gravar(async (arvore, indice) => {
+        const remoto = await github.lerJson(arvore, CAMINHO_ESTADO(imp));
+        const mesclado = mesclarEstados(remoto, meuEstado);
+        if (remoto && JSON.stringify(remoto) === JSON.stringify(mesclado)) {
+          return { mudancas: [], resultado: mesclado };   // nada a gravar
+        }
+        return {
+          mudancas: [{ caminho: CAMINHO_ESTADO(imp),
+                       texto: JSON.stringify(mesclado, null, 1) }],
+          resultado: mesclado,
+          mensagem: 'Leitor: posição em ' + (titulo || imp),
+        };
+      });
+    },
+
+    /* Ler, mesclar, gravar — e repetir se outro aparelho gravou no meio.
+       Três tentativas: além disso é sinal de outra coisa errada, e insistir
+       só transformaria um erro visível num travamento. */
+    async gravar(montar) {
+      for (let tentativa = 0; tentativa < 3; tentativa++) {
+        const base = await github.cabeca();
+        const arvore = await github.arvore(base.arvore);
+        const indice = await this.indice(arvore);
+        const { mudancas, resultado, mensagem } = await montar(arvore, indice);
+        if (!mudancas.length) return resultado;
+        if (await github.commitar(mudancas, mensagem || 'Leitor', base)) return resultado;
+        // o ramo andou: outro aparelho gravou. Reler e refazer a mescla.
+      }
+      throw new Error('Outro aparelho está gravando ao mesmo tempo. Tente de novo.');
+    },
+  };
+
   const sincronia = {
     get config() { return estado.ler('leitor.sync', { servidor: '', token: '' }); },
     set config(valor) { estado.gravar('leitor.sync', valor); },
@@ -3093,6 +3406,16 @@ setTimeout(function () {
   if (!TEM_DEFLATE_RAW) {
     console.info('Leitor: sem deflate-raw nativo; descompactando em JavaScript.');
   }
+  /* Uma porta só para os testes automatizados: eles não conseguem alcançar o
+     que vive dentro desta função, e arrancar o código do fonte para testar —
+     como já fiz uma vez — testa uma cópia, não o leitor. O gancho só dispara
+     se alguém o instalou antes do carregamento, então em uso normal não
+     existe nada aqui. */
+  if (typeof window.__leitorTestes === 'function') {
+    window.__leitorTestes({ github, biblioteca, mesclarEstados, inflarCru,
+                            estado, guarda, VERSAO });
+  }
+
   $('versao').textContent = 'Leitor versão ' + VERSAO;
   desenharEstante();
 
