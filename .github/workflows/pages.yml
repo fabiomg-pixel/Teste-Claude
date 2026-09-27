@@ -21,6 +21,7 @@ on:
 
 permissions:
   contents: write
+  pages: write
 
 concurrency:
   group: pages
@@ -70,4 +71,35 @@ jobs:
           git commit -q -m "Leitor publicado de ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
             HEAD:gh-pages
-          echo "Publicado. Falta só apontar o Pages para a branch gh-pages."
+
+      # Apontar o Pages para gh-pages é uma configuração de repositório, e
+      # empurrar a branch não a cria. Sem isto o endereço responde 404 e o
+      # deploy parece ter funcionado — o pior dos dois mundos. Idempotente: se
+      # já estiver ligado, só informa o endereço.
+      - name: Ligar o Pages, se ainda não estiver
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -u
+          api="https://api.github.com/repos/$REPO/pages"
+          pedir() { curl -sS -H "Authorization: Bearer $GH_TOKEN" \
+                      -H "Accept: application/vnd.github+json" \
+                      -H "X-GitHub-Api-Version: 2022-11-28" "$@"; }
+
+          codigo=$(pedir -o /tmp/pages.json -w '%{http_code}' "$api")
+          if [ "$codigo" = "404" ]; then
+            echo "O Pages ainda não existe. Ligando na branch gh-pages…"
+            criado=$(pedir -o /tmp/criar.json -w '%{http_code}' -X POST "$api" \
+                       -d '{"source":{"branch":"gh-pages","path":"/"}}')
+            echo "criação: HTTP $criado"; cat /tmp/criar.json; echo
+            if [ "$criado" != "201" ]; then
+              echo "::warning::Não consegui ligar o Pages pela API (HTTP $criado); ligue em Settings -> Pages -> Deploy from a branch -> gh-pages / (root)"
+              exit 0
+            fi
+          else
+            echo "O Pages já estava ligado (HTTP $codigo)."
+          fi
+
+          pedir -o /tmp/pages.json "$api" || true
+          python3 -c "import json;d=json.load(open('/tmp/pages.json'));print('ENDERECO DO LEITOR:',d.get('html_url'));print('estado:',d.get('status'),'| fonte:',d.get('source'))"
