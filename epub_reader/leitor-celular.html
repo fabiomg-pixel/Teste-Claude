@@ -224,6 +224,8 @@
 
   .painel-sync { padding: 0 .9rem 1rem; border-top: 1px solid var(--linha); }
 
+  .nota-pe.versao { opacity: .65; font-size: .72rem; letter-spacing: .04em; }
+
   .nota-pe {
     margin: 0;
     padding: 1.5rem clamp(1.25rem, 6vw, 2.5rem) 0;
@@ -707,6 +709,9 @@
     só o pedaço que a página monta.
     <span id="aviso-armazenamento"></span>
   </p>
+  <!-- Visível de propósito: num aparelho onde a página fica guardada em cache,
+       é a única forma de saber se o que está rodando é a versão nova. -->
+  <p class="nota-pe versao" id="versao"></p>
 </section>
 
 <!-- ---------------------------------------------------------- leitura -->
@@ -881,9 +886,60 @@
 
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
+<!-- Este bloco vem antes do leitor, e separado dele, de propósito: um erro de
+     sintaxe mata o bloco onde está, mas ainda é relatado a quem já registrou o
+     ouvinte. Sem isto, uma falha na partida deixa a página inteira inerte — os
+     botões não respondem, nada aparece, e de fora parece que «não acontece
+     nada». Só isto separa um defeito que se conserta de um mistério. -->
+<script>
+window.__leitorFalhou = function (texto, detalhe) {
+  try {
+    var caixa = document.getElementById('falha-leitor');
+    if (!caixa) {
+      caixa = document.createElement('div');
+      caixa.id = 'falha-leitor';
+      caixa.setAttribute('role', 'alert');
+      caixa.style.cssText = 'position:fixed;inset:0 0 auto 0;z-index:9999;'
+        + 'background:#7d1f1f;color:#fff;padding:.9rem 1rem;'
+        + 'font:14px/1.5 system-ui,sans-serif;max-height:60vh;overflow:auto;'
+        + '-webkit-user-select:text;user-select:text';
+      (document.body || document.documentElement).appendChild(caixa);
+    }
+    var p = document.createElement('p');
+    p.style.cssText = 'margin:0 0 .5rem';
+    p.textContent = texto + (detalhe ? '  ·  ' + detalhe : '');
+    caixa.appendChild(p);
+  } catch (e) { /* se nem isto der, não há mais o que fazer */ }
+};
+
+window.addEventListener('error', function (ev) {
+  var onde = ev.filename ? ' (linha ' + ev.lineno + ')' : '';
+  window.__leitorFalhou('O leitor parou: ' + (ev.message || 'erro desconhecido') + onde,
+    'Mande este texto para quem cuida do leitor.');
+});
+
+window.addEventListener('unhandledrejection', function (ev) {
+  var r = ev.reason;
+  window.__leitorFalhou('O leitor parou: ' + ((r && r.message) ? r.message : String(r)),
+    'Mande este texto para quem cuida do leitor.');
+});
+
+// Se o bloco seguinte nem chegar ao fim, ninguém marca isto.
+window.__leitorCarregou = false;
+setTimeout(function () {
+  if (!window.__leitorCarregou) {
+    window.__leitorFalhou('O leitor não terminou de carregar.',
+      'O navegador recusou alguma parte do código. Mande esta mensagem.');
+  }
+}, 4000);
+</script>
+
 <script>
 (function () {
   'use strict';
+
+  /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
+  const VERSAO = 8;
 
   /* O invólucro do artifact pode não trazer a meta viewport; sem ela o
      Android renderiza a 980px e o layout de celular não vale. */
@@ -3016,6 +3072,10 @@
   if (!TEM_DEFLATE_RAW) {
     console.info('Leitor: sem deflate-raw nativo; descompactando em JavaScript.');
   }
+  $('versao').textContent = 'Leitor versão ' + VERSAO;
   desenharEstante();
+
+  // Chegou até aqui: os eventos estão ligados e o leitor está de pé.
+  window.__leitorCarregou = true;
 })();
 </script>
