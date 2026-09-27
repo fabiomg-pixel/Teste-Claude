@@ -5,17 +5,34 @@ JS puro — é o caso de um servidor caseiro em http://, onde o navegador não
 oferece a API de criptografia.
 """
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
+import urllib.request
 
 from playwright.sync_api import sync_playwright
 
-CHROME = "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
-SP = "/tmp/claude-0/-home-user-Teste-Claude/93e83018-1bfd-5ee0-a223-09e405c55c20/scratchpad/"
+from test_como_artifact import montar_epub
+
+AQUI = os.path.dirname(os.path.abspath(__file__))
+CHROME = os.environ.get("CHROME_PATH") or None
 BASE = "http://127.0.0.1:5099"
 TOKEN = "token-de-teste-sincronia"
-EPUB = os.environ.get("EPUB_TESTE", SP + "longo.epub")
+
+# Disco novo a cada rodada. Reaproveitá-lo fazia o aparelho B «herdar» a
+# fronteira de uma execução anterior, e as comparações deste teste passavam a
+# medir lixo: ele falhava dizendo que a fronteira não atravessou, quando o que
+# não atravessava era a de hoje, escondida atrás da de ontem.
+TMP = os.path.join(tempfile.gettempdir(), "leitor-sync-navegador")
+shutil.rmtree(TMP, ignore_errors=True)
+os.makedirs(TMP)
+EPUB = os.environ.get("EPUB_TESTE") or os.path.join(TMP, "longo.epub")
+if not os.path.exists(EPUB):
+    # comprido de propósito: o teste vira 14 páginas e não pode chegar ao fim
+    montar_epub(EPUB, capitulos=10, paragrafos=12)
 
 SEM_CRYPTO = ("Object.defineProperty(window.crypto, 'subtle',"
               " {get: () => undefined, configurable: true});")
@@ -34,7 +51,13 @@ def aparelho(navegador, sem_crypto=False):
 
 
 def ligar_sync(pg):
-    pg.click("#abrir-sync")
+    # O painel pode já estar aberto: na primeira execução o leitor o abre
+    # sozinho, e um clique cego no cabeçalho o fecharia.
+    pg.evaluate("""() => {
+      if (document.getElementById('painel-sync').classList.contains('oculto'))
+        document.getElementById('abrir-sync').click();
+      document.getElementById('alternativa-sync').open = true;   // o servidor é a alternativa
+    }""")
     pg.wait_for_timeout(200)
     pg.fill("#campo-servidor", BASE)
     pg.fill("#campo-token", TOKEN)
@@ -69,18 +92,31 @@ def destacar(pg, cor="mare"):
     pg.wait_for_timeout(400)
 
 
-servidor = subprocess.Popen(
-    [sys.executable, "app.py"],
-    cwd="/home/user/Teste-Claude/epub_reader",
-    env={"PATH": "/usr/bin:/bin", "PORT": "5099", "EPUB_SYNC_TOKEN": TOKEN,
-         "EPUB_DATA_DIR": SP + "dados-sync", "HOME": "/root"},
-    stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-time.sleep(4)
+ambiente = dict(os.environ)
+ambiente.update({"PORT": "5099", "EPUB_SYNC_TOKEN": TOKEN,
+                 "EPUB_DATA_DIR": os.path.join(TMP, "dados-sync")})
+ambiente.pop("EPUB_SENHA", None)          # a porta de entrada não é o assunto aqui
+servidor = subprocess.Popen([sys.executable, "app.py"], cwd=AQUI, env=ambiente,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+
+# Esperar o servidor responder, e não um número de segundos: numa máquina
+# lenta quatro segundos não bastam, e numa rápida são três a mais.
+for _ in range(60):
+    try:
+        urllib.request.urlopen(BASE + "/celular", timeout=1).read(1)
+        break
+    except Exception:
+        if servidor.poll() is not None:
+            sys.exit("o servidor morreu ao subir")
+        time.sleep(0.5)
+else:
+    servidor.kill()
+    sys.exit("o servidor não subiu em 30 segundos")
 
 falhas = []
 try:
     with sync_playwright() as p:
-        nav = p.chromium.launch(executable_path=CHROME)
+        nav = p.chromium.launch(executable_path=CHROME) if CHROME else p.chromium.launch()
 
         print("APARELHO A — importa o livro, lê e destaca")
         a = aparelho(nav)

@@ -1,0 +1,65 @@
+name: Testes do leitor
+
+# Os testes existem há tempo e nada os rodava: um defeito só ficava visível
+# quando alguém se lembrava de rodá-los à mão. Aqui eles rodam a cada empurrão.
+on:
+  push:
+    paths:
+      - 'epub_reader/**'
+      - '.github/workflows/testes.yml'
+  pull_request:
+    paths:
+      - 'epub_reader/**'
+  workflow_dispatch:
+
+jobs:
+  unidade:
+    name: Parser, API, fronteira, mescla e porta
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar o que o servidor precisa
+        run: python3 -m pip install --quiet flask anthropic
+
+      - name: Rodar
+        working-directory: epub_reader
+        run: python3 -m unittest test_leitor test_sync test_porta -v
+
+  navegador:
+    name: O leitor rodando num navegador de verdade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar o Playwright e o Chromium
+        run: |
+          python3 -m pip install --quiet playwright flask
+          python3 -m playwright install --with-deps chromium
+
+      # Cada um cobre um ambiente diferente, e é a diferença entre eles que
+      # pega defeitos: o artifact (window.claude), e a biblioteca no GitHub
+      # com a tela de conexão — inclusive a corrida entre dois aparelhos.
+      - name: O leitor de pé no artifact e solto
+        working-directory: epub_reader
+        run: python3 test_como_artifact.py
+
+      - name: A biblioteca no GitHub e a tela de conexão
+        working-directory: epub_reader
+        run: python3 test_github.py
+
+      - name: O servidor perdendo o disco inteiro
+        working-directory: epub_reader
+        run: python3 test_disco_efemero.py
+
+      - name: Dois aparelhos sincronizando pelo servidor
+        working-directory: epub_reader
+        run: python3 test_sincronia_navegador.py

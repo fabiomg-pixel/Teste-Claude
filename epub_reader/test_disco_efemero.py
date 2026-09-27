@@ -115,7 +115,14 @@ def aparelho(nav):
 
 
 def ligar_sync(pg):
-    pg.click("#abrir-sync"); pg.wait_for_timeout(200)
+    # O painel pode já estar aberto: na primeira execução o leitor o abre
+    # sozinho, e um clique cego no cabeçalho o fecharia.
+    pg.evaluate("""() => {
+      if (document.getElementById('painel-sync').classList.contains('oculto'))
+        document.getElementById('abrir-sync').click();
+      document.getElementById('alternativa-sync').open = true;   // o servidor é a alternativa
+    }""")
+    pg.wait_for_timeout(200)
     pg.fill("#campo-servidor", BASE)
     pg.fill("#campo-token", TOKEN)
     pg.click("#salvar-sync"); pg.wait_for_timeout(3000)

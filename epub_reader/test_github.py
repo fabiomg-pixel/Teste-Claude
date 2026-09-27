@@ -23,6 +23,10 @@ PAGINA = os.path.join(TMP, "leitor.html")
 subprocess.run([sys.executable, os.path.join(AQUI, "pagina.py"), PAGINA],
                check=True, stdout=subprocess.DEVNULL)
 
+from test_como_artifact import montar_epub          # noqa: E402
+
+montar_epub(os.path.join(TMP, "semente.epub"))
+
 falhas = []
 with sync_playwright() as p:
     nav = p.chromium.launch(executable_path=CHROME) if CHROME else p.chromium.launch()
@@ -118,6 +122,128 @@ with sync_playwright() as p:
     print("   intacto:", r)
     if not r:
         falhas.append("o EPUB voltou corrompido")
+
+    print("6. a tela de conexão, tocada como a pessoa toca")
+    # Um contexto novo: localStorage limpo e um GitHub falso limpo, como um
+    # aparelho que nunca viu o repositório. É o caminho que a pessoa percorre,
+    # e não a camada por baixo — um botão desligado do seu tratador passaria
+    # por todos os testes acima sem que nada disso aparecesse.
+    ctx2 = nav.new_context(viewport={"width": 420, "height": 900}, has_touch=True)
+    ctx2.add_init_script(GANCHO + open(os.path.join(AQUI, "github-falso.js"),
+                                       encoding="utf-8").read())
+    pg2 = ctx2.new_page()
+    avisos = []
+    pg2.on("pageerror", lambda e: falhas.append("erro de JS na tela: " + str(e)))
+    pg2.on("console", lambda m: avisos.append(m.text) if m.type == "warning" else None)
+    pg2.goto("file://" + PAGINA)
+    pg2.wait_for_timeout(1500)
+
+    sumidos = [a for a in avisos if "não existe" in a]
+    if sumidos:
+        falhas.append("elemento destruído na tela de conexão — " + sumidos[0])
+
+    # na primeira execução o convite aparece sem ninguém ir procurá-lo
+    if pg2.locator("#painel-sync.oculto").count():
+        falhas.append("na primeira execução o painel de conexão não se abriu")
+
+    # Semeia o repositório com um livro de verdade, como outro aparelho teria
+    # deixado, e depois esquece a configuração: daqui para frente é só a tela.
+    with open(os.path.join(TMP, "semente.epub"), "rb") as fh:
+        semente = list(fh.read())
+    pg2.evaluate("""async (bytes) => {
+      const cru = new Uint8Array(bytes);
+      await api.github.conectar('fabio', 'biblioteca', 'ficha-valida');
+      const imp = await api.impressaoDigital(cru.buffer);
+      await api.biblioteca.enviarLivro(
+        {impressao: imp, titulo: 'Livro de teste', autor: 'Ninguém',
+         bytes: cru.buffer, totalBlocos: 54},
+        {fronteira: 12, posicao: {bloco: 12, em: 1000}, marcas: []});
+      api.github.config = {dono: '', repo: '', token: '', ramo: ''};
+    }""", semente)
+    antes = pg2.evaluate("() => window.__GH.arquivos()")
+
+    def ligar(repo, token):
+        pg2.fill("#campo-repo", repo)
+        pg2.fill("#campo-gh-token", token)
+        pg2.click("#salvar-gh")
+        pg2.wait_for_timeout(700)
+        return pg2.locator("#aviso").text_content().strip()
+
+    for repo, token, espero, porque in [
+        ("fabio", "ficha-valida", "usuario/nome", "formato errado do repositório"),
+        ("fabio/biblioteca", "", "token", "token em branco"),
+        ("fabio/biblioteca", "ficha-errada", "expirado", "token recusado"),
+        ("fabio/nao-existe", "ficha-valida", "não encontrado", "repositório inexistente"),
+    ]:
+        dito = ligar(repo, token)
+        print(f"   {porque:32} → {dito[:56]}")
+        if espero not in dito:
+            falhas.append(f"{porque}: a tela disse «{dito[:60]}»")
+        if pg2.evaluate("() => api.github.ligado"):
+            falhas.append(f"{porque}: a tela guardou uma configuração que não funciona")
+
+    # a URL inteira, colada da barra de endereço, tem de servir
+    dito = ligar("https://github.com/fabio/biblioteca.git", "ficha-valida")
+    print("   URL colada do navegador          →", dito[:56])
+    if not pg2.evaluate("() => api.github.ligado"):
+        falhas.append("não aceitou a URL colada do navegador")
+    if pg2.evaluate("() => api.sincronia.modo") != "github":
+        falhas.append("ligar ao repositório não mudou o modo de sincronia")
+    if pg2.locator("#desligar-gh.oculto").count():
+        falhas.append("o botão de desligar não apareceu depois de ligar")
+
+    # o livro do outro aparelho desce sozinho: a estante nasce cheia
+    pg2.wait_for_timeout(4000)
+    livros = pg2.locator("#prateleira .livro").count()
+    pct = pg2.locator("#prateleira .livro .pct").first.text_content().strip()
+    print(f"   estante depois de ligar: {livros} livro(s), andamento {pct}")
+    if livros != 1:
+        falhas.append(f"a estante deveria ter o livro do repositório; tem {livros}")
+    if pct in ("—", "0%"):
+        falhas.append("o livro desceu sem a fronteira de leitura do outro aparelho")
+
+    # e o mesmo livro não volta para o repositório como se fosse outro
+    depois = pg2.evaluate("() => window.__GH.arquivos()")
+    if [a for a in depois if a.endswith(".epub")] != [a for a in antes if a.endswith(".epub")]:
+        falhas.append(f"o livro baixado foi reenviado como outro: {depois}")
+
+    # o token sobrevive a um recarregamento — senão religar seria diário
+    pg2.reload()
+    pg2.wait_for_timeout(1500)
+    if not pg2.evaluate("() => api.github.ligado"):
+        falhas.append("o repositório não foi lembrado depois de recarregar")
+
+    pg2.evaluate("""() => {
+      if (document.getElementById('painel-sync').classList.contains('oculto'))
+        document.getElementById('abrir-sync').click();
+    }""")
+    pg2.wait_for_timeout(300)
+    if pg2.input_value("#campo-repo") != "fabio/biblioteca":
+        falhas.append("o painel não mostra o repositório já ligado")
+
+    # token que expirou depois de ligado: a sincronia de fundo não pode calar
+    pg2.evaluate("""() => {
+      const c = api.github.config;
+      api.github.config = {dono: c.dono, repo: c.repo, token: 'ficha-expirada', ramo: c.ramo};
+    }""")
+    pg2.evaluate("() => { document.getElementById('aviso').textContent = ''; }")
+    pg2.evaluate("async () => await api.sincronizarTudo(true)")
+    pg2.wait_for_timeout(1200)
+    dito = pg2.locator("#aviso").text_content().strip()
+    marca = pg2.locator("#estado-sync").text_content().strip()
+    print("   token expirado em segundo plano  →", (dito or "(calado)")[:56], "|", marca)
+    if "expirado" not in dito:
+        falhas.append(f"o token expirado falhou em silêncio: «{dito[:60]}»")
+    if "token" not in marca:
+        falhas.append(f"a estante não mostra que a sincronia parou: «{marca}»")
+
+    pg2.click("#desligar-gh")
+    pg2.wait_for_timeout(300)
+    if pg2.evaluate("() => api.github.ligado"):
+        falhas.append("desligar não desligou")
+    print("   desligar                         →",
+          pg2.locator("#aviso").text_content().strip()[:56])
+    ctx2.close()
 
     nav.close()
 

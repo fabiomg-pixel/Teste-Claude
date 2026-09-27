@@ -684,21 +684,49 @@
       </button>
 
       <div class="painel-sync oculto" id="painel-sync">
-        <p class="vazio" style="padding:.2rem 0 .7rem">
-          Aponte para o servidor do leitor rodando no seu computador. Posição,
-          fronteira e destaques passam a viajar entre celular, Mac e iPhone —
-          e os livros também. O endereço e o token aparecem no terminal quando
-          você roda <span class="mono">python app.py</span>.
-        </p>
-        <div id="forma-sync">
-          <input class="campo" id="campo-servidor" style="min-height:0;margin-bottom:.5rem"
-                 placeholder="http://seu-mac:5001" inputmode="url" autocomplete="off">
-          <input class="campo" id="campo-token" type="password" style="min-height:0"
-                 placeholder="token de sincronização" autocomplete="off">
+        <div id="formas-sync">
+          <p class="vazio" style="padding:.2rem 0 .7rem">
+            Um repositório <b>privado</b> do GitHub guarda os livros e onde você
+            parou em cada um. Todo aparelho ligado ao mesmo repositório passa a
+            ver a mesma estante, a mesma página e os mesmos destaques — sem
+            nenhuma máquina sua precisar ficar ligada.
+          </p>
+          <input class="campo" id="campo-repo" style="min-height:0;margin-bottom:.5rem"
+                 placeholder="usuario/nome-do-repositorio" inputmode="url"
+                 autocomplete="off" autocapitalize="none" spellcheck="false">
+          <input class="campo" id="campo-gh-token" type="password" style="min-height:0"
+                 placeholder="token do GitHub" autocomplete="off">
           <div class="pilha" style="padding-top:.6rem">
-            <button class="acao" id="salvar-sync">Guardar e sincronizar</button>
-            <button class="acao secundaria oculto" id="desligar-sync">Desligar a sincronização</button>
+            <button class="acao" id="salvar-gh">Ligar ao repositório</button>
+            <button class="acao secundaria oculto" id="desligar-gh">Desligar este aparelho</button>
           </div>
+          <p class="vazio" style="padding:.7rem 0 .2rem">
+            O token fica só neste aparelho, no armazenamento do navegador: não
+            vai para o repositório nem para ninguém. Para criar um, em
+            <span class="mono">github.com/settings/personal-access-tokens</span>
+            escolha «fine-grained», só este repositório, e a permissão
+            <span class="mono">Contents: read and write</span>.
+          </p>
+
+          <details id="alternativa-sync" style="padding-top:.4rem">
+            <summary class="vazio" style="cursor:pointer;padding:.3rem 0">
+              Ou um servidor seu, rodando na sua casa
+            </summary>
+            <div id="forma-sync" style="padding-top:.5rem">
+              <p class="vazio" style="padding:0 0 .6rem">
+                O endereço e o token aparecem no terminal quando você roda
+                <span class="mono">python3 app.py</span>.
+              </p>
+              <input class="campo" id="campo-servidor" style="min-height:0;margin-bottom:.5rem"
+                     placeholder="http://seu-mac:5001" inputmode="url" autocomplete="off">
+              <input class="campo" id="campo-token" type="password" style="min-height:0"
+                     placeholder="token de sincronização" autocomplete="off">
+              <div class="pilha" style="padding-top:.6rem">
+                <button class="acao secundaria" id="salvar-sync">Guardar e sincronizar</button>
+                <button class="acao secundaria oculto" id="desligar-sync">Desligar a sincronização</button>
+              </div>
+            </div>
+          </details>
         </div>
       </div>
     </div>
@@ -706,9 +734,9 @@
 
   <p class="nota-pe">
     <strong>Onde ficam os arquivos.</strong> No armazenamento do próprio
-    navegador — e, se você ligar a sincronização, também no seu servidor. Fora
-    isso nada sai daqui: quem leva o texto para a conversa é você, colando, e
-    só o pedaço que a página monta.
+    navegador — e, se você ligar a sincronização, também no repositório privado
+    que você indicar (ou no seu servidor). Fora isso nada sai daqui: quem leva o
+    texto para a conversa é você, colando, e só o pedaço que a página monta.
     <span id="aviso-armazenamento"></span>
   </p>
   <!-- Visível de propósito: num aparelho onde a página fica guardada em cache,
@@ -941,7 +969,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 10;
+  const VERSAO = 11;
 
   /* Ligar evento por id, tolerando a ausência. Um único elemento faltante
      lançava um TypeError que interrompia a ligação de TODOS os eventos
@@ -2744,10 +2772,19 @@ setTimeout(function () {
     },
   };
 
+  /* Dois destinos possíveis para o mesmo estado, e o repositório vem primeiro:
+     é o único que funciona de qualquer lugar sem uma máquina sua ligada. O
+     servidor caseiro continua aí para quem o tem — e quem tem os dois usa o
+     repositório, porque é o que os outros aparelhos vão alcançar. */
   const sincronia = {
     get config() { return estado.ler('leitor.sync', { servidor: '', token: '' }); },
     set config(valor) { estado.gravar('leitor.sync', valor); },
-    get ligada() { const c = this.config; return !!(c.servidor && c.token); },
+    get modo() {
+      if (github.ligado) return 'github';
+      const c = this.config;
+      return (c.servidor && c.token) ? 'servidor' : '';
+    },
+    get ligada() { return this.modo !== ''; },
     ocupada: false,
   };
 
@@ -2926,6 +2963,11 @@ setTimeout(function () {
 
   async function sincronizarLivro(registro) {
     if (!sincronia.ligada || !registro.impressao) return null;
+    if (sincronia.modo === 'github') {
+      const mesclado = await biblioteca.sincronizarEstado(
+        registro.impressao, estadoParaEnviar(registro.id), registro.titulo);
+      return aplicarEstado(registro.id, mesclado);
+    }
     const resposta = await pedirAoServidor('/api/sync/estado/' + registro.impressao, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2938,56 +2980,100 @@ setTimeout(function () {
     return aplicarEstado(registro.id, corpo.estado || {});
   }
 
+  /* Livros guardados antes de a sincronização existir não têm impressão
+     digital, e sem ela não há como casar o mesmo EPUB em dois aparelhos. */
+  async function completarImpressoes(locais) {
+    for (const registro of locais) {
+      if (registro.impressao) continue;
+      registro.impressao = await impressaoDigital(registro.bytes.slice(0));
+      await guarda.guardar(registro);
+    }
+    return locais;
+  }
+
   async function sincronizarTudo(silencioso) {
     if (!sincronia.ligada || sincronia.ocupada) return;
     sincronia.ocupada = true;
     marcarSincronia('sincronizando…');
     try {
-      const remoto = await (await pedirAoServidor('/api/sync/hello')).json();
-      let locais = await guarda.listar();
-
-      // livros antigos, guardados antes da sincronização existir
-      for (const registro of locais) {
-        if (!registro.impressao) {
-          registro.impressao = await impressaoDigital(registro.bytes.slice(0));
-          await guarda.guardar(registro);
-        }
-      }
-
-      // traz o que só existe no servidor
-      const daqui = new Set(locais.map((l) => l.impressao));
-      for (const item of remoto.livros.filter((l) => l.tem_arquivo && !daqui.has(l.impressao))) {
-        marcarSincronia('baixando «' + (item.titulo || 'livro') + '»…');
-        const bytes = await (await pedirAoServidor('/api/sync/arquivo/' + item.impressao)).arrayBuffer();
-        await importar(new File([bytes], (item.titulo || 'livro') + '.epub'), { abrir: false });
-      }
-
-      // sobe o que o servidor não tem
-      for (const registro of locais) {
-        const noServidor = remoto.livros.find((l) => l.impressao === registro.impressao);
-        if (noServidor && noServidor.tem_arquivo) continue;
-        marcarSincronia('enviando «' + (registro.titulo || 'livro') + '»…');
-        const forma = new FormData();
-        forma.append('file', new Blob([registro.bytes], { type: 'application/epub+zip' }), 'livro.epub');
-        await pedirAoServidor('/api/sync/arquivo/' + registro.impressao +
-          '?titulo=' + encodeURIComponent(registro.titulo || ''), { method: 'POST', body: forma });
-      }
-
-      // e só então o estado — inclusive o dos livros recém-baixados
-      marcarSincronia('sincronizando…');
-      locais = await guarda.listar();
-      for (const registro of locais) await sincronizarLivro(registro);
-
+      if (sincronia.modo === 'github') await rodadaNoRepositorio();
+      else await rodadaNoServidor();
       estado.gravar('leitor.sync.ultima', Date.now() / 1000);
       marcarSincronia('');
       if (!silencioso) aviso('Tudo sincronizado');
       desenharEstante();
     } catch (erro) {
-      marcarSincronia('');
-      if (!silencioso) aviso(erro.message || 'Falha ao sincronizar');
+      const mensagem = erro.message || 'Falha ao sincronizar';
+      /* Um token recusado não pode falhar calado. A sincronia pararia de
+         acontecer sem ninguém notar, e a pessoa só descobriria dias depois,
+         em outro aparelho, não achando o que leu. */
+      const grave = /token/i.test(mensagem);
+      marcarSincronia(grave ? 'token recusado — religue' : '');
+      if (!silencioso || grave) aviso(mensagem);
     } finally {
       sincronia.ocupada = false;
     }
+  }
+
+  /* Uma rodada contra o repositório. A ordem importa: um livro que só existe
+     lá precisa entrar na estante antes de ter posição, e a posição de todos é
+     mesclada depois — nunca substituída. */
+  async function rodadaNoRepositorio() {
+    const { livros } = await biblioteca.listar();
+    let locais = await completarImpressoes(await guarda.listar());
+
+    const daqui = new Set(locais.map((l) => l.impressao));
+    for (const item of livros.filter((l) => !daqui.has(l.impressao))) {
+      marcarSincronia('baixando «' + (item.titulo || 'livro') + '»…');
+      const bytes = await biblioteca.baixar(item.sha);
+      await importar(new File([bytes], (item.titulo || 'livro') + '.epub'), { abrir: false });
+    }
+
+    const noRepo = new Set(livros.map((l) => l.impressao));
+    locais = await guarda.listar();
+    for (const registro of locais) {
+      if (!registro.impressao) continue;
+      const meu = estadoParaEnviar(registro.id);
+      let mesclado;
+      if (noRepo.has(registro.impressao)) {
+        marcarSincronia('sincronizando…');
+        mesclado = await biblioteca.sincronizarEstado(registro.impressao, meu, registro.titulo);
+      } else {
+        marcarSincronia('enviando «' + (registro.titulo || 'livro') + '»…');
+        mesclado = await biblioteca.enviarLivro(registro, meu);
+        noRepo.add(registro.impressao);
+      }
+      aplicarEstado(registro.id, mesclado);
+    }
+  }
+
+  async function rodadaNoServidor() {
+    const remoto = await (await pedirAoServidor('/api/sync/hello')).json();
+    let locais = await completarImpressoes(await guarda.listar());
+
+    // traz o que só existe no servidor
+    const daqui = new Set(locais.map((l) => l.impressao));
+    for (const item of remoto.livros.filter((l) => l.tem_arquivo && !daqui.has(l.impressao))) {
+      marcarSincronia('baixando «' + (item.titulo || 'livro') + '»…');
+      const bytes = await (await pedirAoServidor('/api/sync/arquivo/' + item.impressao)).arrayBuffer();
+      await importar(new File([bytes], (item.titulo || 'livro') + '.epub'), { abrir: false });
+    }
+
+    // sobe o que o servidor não tem
+    for (const registro of locais) {
+      const noServidor = remoto.livros.find((l) => l.impressao === registro.impressao);
+      if (noServidor && noServidor.tem_arquivo) continue;
+      marcarSincronia('enviando «' + (registro.titulo || 'livro') + '»…');
+      const forma = new FormData();
+      forma.append('file', new Blob([registro.bytes], { type: 'application/epub+zip' }), 'livro.epub');
+      await pedirAoServidor('/api/sync/arquivo/' + registro.impressao +
+        '?titulo=' + encodeURIComponent(registro.titulo || ''), { method: 'POST', body: forma });
+    }
+
+    // e só então o estado — inclusive o dos livros recém-baixados
+    marcarSincronia('sincronizando…');
+    locais = await guarda.listar();
+    for (const registro of locais) await sincronizarLivro(registro);
   }
 
   function marcarSincronia(texto) {
@@ -3169,15 +3255,15 @@ setTimeout(function () {
        que matava o script inteiro — e com ele todos os outros botões, inclusive
        o de abrir livro. Um erro que só acontecia dentro do artifact, onde
        window.claude existe, e por isso nenhum teste local o via. */
-    const forma = $('forma-sync');
-    if (forma) forma.classList.add('oculto');
+    const formas = $('formas-sync');
+    if (formas) formas.classList.add('oculto');
     const nota = document.createElement('p');
     nota.className = 'vazio';
     nota.style.padding = '.2rem 0 .3rem';
     nota.textContent = 'Esta cópia da página é a publicada, e ela não tem '
-      + 'permissão para falar com servidores — a política de segurança do '
-      + 'artifact bloqueia. Para sincronizar, use o aplicativo Android ou abra '
-      + 'o leitor pelo endereço do seu próprio servidor (/celular).';
+      + 'permissão para falar com o GitHub nem com servidor nenhum — a '
+      + 'política de segurança do artifact bloqueia. Para sincronizar, use o '
+      + 'aplicativo Android, o leitor publicado em Pages, ou o arquivo solto.';
     $('painel-sync').appendChild(nota);
   }
 
@@ -3186,11 +3272,75 @@ setTimeout(function () {
     const fechado = painel.classList.toggle('oculto');
     $('abrir-sync').setAttribute('aria-expanded', String(!fechado));
     if (!fechado && !noArtifact) {
+      const g = github.config;
+      $('campo-repo').value = (g.dono && g.repo) ? g.dono + '/' + g.repo : '';
+      $('campo-gh-token').value = g.token || '';
+      $('desligar-gh').classList.toggle('oculto', !github.ligado);
       const c = sincronia.config;
       $('campo-servidor').value = c.servidor || '';
       $('campo-token').value = c.token || '';
-      $('desligar-sync').classList.toggle('oculto', !sincronia.ligada);
+      $('desligar-sync').classList.toggle('oculto', !(c.servidor && c.token));
+      // quem já usa o servidor não deve ter de procurar onde ele foi guardado
+      if (c.servidor && $('alternativa-sync')) $('alternativa-sync').open = true;
     }
+  });
+
+  /* Aceita o que a pessoa tem à mão: o «usuario/nome» da barra de endereço,
+     a URL inteira colada do navegador, com ou sem .git no fim. Errar o formato
+     e receber um 404 do GitHub seria uma pista ruim para um erro de digitação. */
+  function lerRepositorio(bruto) {
+    const limpo = bruto.trim()
+      .replace(/^https?:\/\/(www\.)?github\.com\//i, '')
+      .replace(/\.git$/i, '')
+      .replace(/^\/+|\/+$/g, '');
+    const partes = limpo.split('/');
+    if (partes.length !== 2 || !partes[0] || !partes[1]) return null;
+    return { dono: partes[0], repo: partes[1] };
+  }
+
+  ao('salvar-gh', 'click', async () => {
+    const alvo = lerRepositorio($('campo-repo').value);
+    const token = $('campo-gh-token').value.trim();
+    if (!alvo) {
+      aviso('Escreva o repositório como usuario/nome — por exemplo, '
+          + 'fulano/minha-biblioteca.');
+      return;
+    }
+    if (!token) { aviso('Falta o token do GitHub.'); return; }
+
+    /* Conferir agora, e voltar atrás se não der: deixar uma configuração que
+       não funciona guardada faria toda leitura seguinte falhar em silêncio. */
+    const antes = github.config;
+    const botao = $('salvar-gh');
+    botao.disabled = true;
+    marcarSincronia('conferindo o acesso…');
+    let ficha;
+    try {
+      ficha = await github.conectar(alvo.dono, alvo.repo, token);
+    } catch (erro) {
+      github.config = antes;
+      marcarSincronia('');
+      aviso(erro.message || 'Não consegui falar com o GitHub.');
+      return;
+    } finally {
+      botao.disabled = false;
+    }
+
+    $('desligar-gh').classList.remove('oculto');
+    const nome = alvo.dono + '/' + alvo.repo;
+    aviso(ficha.privado
+      ? 'Ligado a ' + nome
+      : 'Ligado a ' + nome + ' — atenção: este repositório é público.');
+    await sincronizarTudo();
+  });
+
+  ao('desligar-gh', 'click', () => {
+    github.config = { dono: '', repo: '', token: '', ramo: '' };
+    $('campo-gh-token').value = '';
+    $('desligar-gh').classList.add('oculto');
+    marcarSincronia('');
+    aviso('Este aparelho não fala mais com o repositório. Os livros que já '
+        + 'estão aqui continuam aqui.');
   });
 
   ao('salvar-sync', 'click', async () => {
@@ -3388,6 +3538,18 @@ setTimeout(function () {
   ligarModoNativo();
   marcarSincronia('');
   if (sincronia.ligada) setTimeout(() => sincronizarTudo(true), 600);
+
+  /* Primeira execução: nada ligado e nenhum livro. Abrir o painel é o que
+     transforma «sincronizar» de uma coisa escondida numa pergunta feita — e
+     só acontece uma vez, para não atrapalhar quem prefere ler solto. */
+  if (!noArtifact && !sincronia.ligada && !estado.ler('leitor.convidado', false)) {
+    guarda.listar().then((lista) => {
+      if (lista.length) return;
+      estado.gravar('leitor.convidado', true);
+      $('painel-sync').classList.remove('oculto');
+      $('abrir-sync').setAttribute('aria-expanded', 'true');
+    });
+  }
   if (window.claude && window.claude.downloads) $('baixar').classList.remove('oculto');
   guarda.sondar().then((guardaOk) => {
     if (guardaOk && estado.persistente) return;
@@ -3412,7 +3574,8 @@ setTimeout(function () {
      se alguém o instalou antes do carregamento, então em uso normal não
      existe nada aqui. */
   if (typeof window.__leitorTestes === 'function') {
-    window.__leitorTestes({ github, biblioteca, mesclarEstados, inflarCru,
+    window.__leitorTestes({ github, biblioteca, sincronia, sincronizarTudo,
+                            mesclarEstados, inflarCru, impressaoDigital,
                             estado, guarda, VERSAO });
   }
 

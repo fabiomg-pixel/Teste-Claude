@@ -53,7 +53,7 @@ nada além da fronteira aparece no que se manda ao modelo.
 | Conversa | Integrada, com resumos por capítulo | Monta o texto para você colar no app do Claude | Integrada, com a sua chave no aparelho |
 | Instalação | `python3 -m pip install -r requirements.txt` | Nenhuma — é um arquivo HTML (`python3 pagina.py`) | Instalar o APK |
 | Anti-spoiler | Recorte no servidor, limitado pelo progresso | Mesmo recorte, feito no aparelho | Mesmo recorte, feito no aparelho |
-| Sincronia | é o servidor | com o servidor, se você ligar | com o servidor, se você ligar |
+| Sincronia | é o servidor | repositório privado do GitHub, ou o seu servidor | idem |
 
 `leitor-celular.html` é autossuficiente: abre EPUB (descompacta com
 `DecompressionStream`), pagina, guarda livro e anotações no navegador e monta o
@@ -105,6 +105,53 @@ Para a estante ficar (e para sincronizar), o arquivo precisa vir de um endereço
 agora, em qualquer aparelho, sem depender de nada.
 
 ## Sincronizar entre aparelhos
+
+Há dois caminhos, e o primeiro não pede máquina ligada em casa nenhuma.
+
+### Um repositório privado do GitHub (recomendado)
+
+O repositório é a verdade; o navegador é cache. Os livros e a posição de leitura
+ficam lá, e qualquer aparelho ligado ao mesmo repositório vê a mesma estante, a
+mesma página e os mesmos destaques.
+
+1. Em [github.com/new](https://github.com/new), crie um repositório **privado**
+   e marque *Add a README* (um repositório vazio não tem ramo para escrever).
+2. Em **Settings → Developer settings → Personal access tokens → Fine-grained
+   tokens**, gere um token com acesso **só a esse repositório** e a permissão
+   **Contents: read and write**. Nada mais.
+3. No leitor, em cada aparelho: estante → **Sincronizar entre aparelhos** →
+   escreva `usuario/nome-do-repositorio` (a URL inteira, colada do navegador,
+   também serve) e cole o token → **Ligar ao repositório**.
+
+O acesso é conferido na hora: nome errado, token sem permissão ou token expirado
+dão uma mensagem que diz o que fazer, e nada é guardado. Se o token expirar
+depois, a sincronização de fundo **não** falha calada — aparece o aviso e a
+estante passa a mostrar «token recusado — religue».
+
+O token fica só no aparelho, no armazenamento do navegador. Ele não vai para o
+repositório, nem para o servidor, nem para lugar nenhum: as chamadas saem do seu
+navegador direto para `api.github.com`.
+
+Dentro do repositório:
+
+```
+livros/<impressão>.epub     o arquivo, como você o abriu
+estado/<impressão>.json     posição, fronteira, destaques
+indice.json                 título e autor de cada um, para a estante
+                            desenhar sem baixar livro nenhum
+```
+
+A impressão digital vem dos bytes do EPUB, então o mesmo arquivo importado em
+dois aparelhos casa sozinho. A escrita usa a API de dados do git (blobs,
+árvores, commits) e não a de conteúdo — esta última pára em 1 MB, e um romance
+passa disso. Um commit leva estado e índice juntos: ou entra tudo, ou nada.
+
+Dois aparelhos gravando ao mesmo tempo não se atropelam. O commit nasce sobre a
+versão que foi lida; se o ramo andou nesse meio-tempo, o GitHub recusa o
+`PATCH`, e o leitor relê, refaz a mescla e repete. É o mesmo controle de
+concorrência de um `git push`.
+
+### Um servidor seu, rodando na sua casa
 
 O servidor guarda o estado de leitura e os arquivos; cada aparelho manda o que
 tem e recebe **a mescla** de volta — nunca uma substituição.
@@ -370,18 +417,29 @@ cd epub_reader
 python3 -m unittest test_leitor test_sync test_porta -v
 ```
 
-43 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
+44 testes cobrindo o parser, a API de leitura, a busca, o caminho da conversa
 (com um cliente falso, sem gastar API), a fronteira anti-spoiler e as regras de
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E três testes de navegador, todos precisando do Playwright:
+E quatro testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
-| `test_sincronia_navegador.py` | dois aparelhos sincronizando de verdade contra o servidor |
+| `test_sincronia_navegador.py` | dois aparelhos sincronizando de verdade contra o servidor, um deles sem `crypto.subtle` |
 | `test_disco_efemero.py` | o servidor perde o disco inteiro e os aparelhos o reconstroem |
 | `test_como_artifact.py` | o leitor de pé nos dois ambientes: publicado e solto |
+| `test_github.py` | a biblioteca no GitHub e a tela de conexão, contra uma API falsa |
+
+O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
+usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
+recusa que prova o controle de concorrência: sem ela, dois aparelhos gravando
+quase ao mesmo tempo perderiam o trabalho um do outro em silêncio. O mesmo teste
+toca a tela de conexão como a pessoa toca, num aparelho de localStorage limpo:
+repositório mal escrito, token em branco, token recusado, token expirado depois
+de ligado, a URL colada da barra de endereço, o livro do outro aparelho descendo
+sozinho, e o token lembrado depois de recarregar. Um botão desligado do seu
+tratador passaria por qualquer teste da camada de baixo.
 
 O último existe por um defeito que sobreviveu a várias rodadas: dentro do
 artifact o `window.claude` existe, e o leitor trocava o conteúdo do painel de
@@ -404,7 +462,11 @@ python3 -m pip install playwright && python3 -m playwright install chromium
 python3 test_sincronia_navegador.py
 python3 test_disco_efemero.py
 python3 test_como_artifact.py
+python3 test_github.py
 ```
+
+Tudo isso roda a cada empurrão, em
+[`.github/workflows/testes.yml`](../.github/workflows/testes.yml).
 
 ---
 
@@ -448,6 +510,8 @@ epub_reader/
 ├── segredos.py       # gera senha, token e chave para a nuvem
 ├── test_disco_efemero.py  # apaga o disco do servidor e vê os aparelhos o refazerem
 ├── test_como_artifact.py  # o leitor de pé publicado e solto
+├── github-falso.js   # um GitHub de mentira, do tamanho do que o leitor usa
+├── test_github.py    # a biblioteca no repositório e a tela de conexão
 ├── livro_de_capa.py  # gera um EPUB que começa pela capa, como os de editora
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem

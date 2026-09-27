@@ -40,8 +40,12 @@ COMO_ARTIFACT = """
 """
 
 
-def montar_epub(caminho: str) -> None:
-    """Um livro com a forma que os de editora têm: capa sem texto no spine."""
+def montar_epub(caminho: str, capitulos: int = 6, paragrafos: int = 9) -> None:
+    """Um livro com a forma que os de editora têm: capa sem texto no spine.
+
+    Os tamanhos são parâmetros porque outro teste precisa de um livro longo o
+    bastante para virar dezenas de páginas sem chegar ao fim.
+    """
     def png():
         linhas = b"".join(b"\x00" + bytes((30, 40, 60)) * 20 for _ in range(30))
         def bloco(tipo, dados):
@@ -67,12 +71,13 @@ def montar_epub(caminho: str) -> None:
                    'media-type="application/oebps-package+xml"/></rootfiles></container>')
         z.writestr("OEBPS/capa.png", png())
         z.writestr("OEBPS/000_capa.xhtml", pagina("Capa", '<img src="capa.png" alt="Capa"/>'))
-        for i in range(6):
+        for i in range(capitulos):
             ps = "".join(f"<p>Parágrafo {j} do capítulo {i + 1}, com texto de sobra "
-                         f"para render algumas páginas de leitura.</p>" for j in range(9))
+                         f"para render algumas páginas de leitura.</p>"
+                         for j in range(paragrafos))
             z.writestr(f"OEBPS/{i + 1:03d}_cap.xhtml", pagina(f"Capítulo {i + 1}",
                                                               f"<h1>Capítulo {i + 1}</h1>{ps}"))
-        nomes = ["000_capa.xhtml"] + [f"{i + 1:03d}_cap.xhtml" for i in range(6)]
+        nomes = ["000_capa.xhtml"] + [f"{i + 1:03d}_cap.xhtml" for i in range(capitulos)]
         z.writestr("OEBPS/nav.xhtml", pagina("Sumário", '<nav epub:type="toc"><ol>'
                    + "".join(f'<li><a href="{n}">{n}</a></li>' for n in nomes[1:])
                    + "</ol></nav>"))
