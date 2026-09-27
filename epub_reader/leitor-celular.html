@@ -911,8 +911,169 @@
   }
 
   /* ================================================================== *
-   * 1. ZIP — o EPUB é aberto aqui mesmo, com DecompressionStream
+   * 1. ZIP — o EPUB é aberto aqui mesmo
    * ================================================================== */
+
+  /* O modo 'deflate-raw', que é o que o ZIP usa, chegou ao Safari depois de
+     'gzip' e 'deflate'. Num aparelho sem ele o leitor simplesmente não abriria
+     livro nenhum — daí a implementação abaixo, que é o mesmo algoritmo
+     (RFC 1951) em JavaScript. O caminho nativo continua sendo o preferido:
+     este só entra quando o navegador não oferece o outro. */
+  const TEM_DEFLATE_RAW = (function () {
+    if (typeof DecompressionStream === 'undefined') return false;
+    try { new DecompressionStream('deflate-raw'); return true; }
+    catch (e) { return false; }
+  })();
+
+  const INFLATE_COMP = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51,
+                        59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+  const INFLATE_COMP_EXTRA = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+                              4, 4, 4, 4, 5, 5, 5, 5, 0];
+  const INFLATE_DIST = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385,
+                        513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+  const INFLATE_DIST_EXTRA = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+                              9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+  const INFLATE_ORDEM = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+
+  function inflarCru(entrada) {
+    let pos = 0, bit = 0, fim = 0;
+    let saida = new Uint8Array(Math.max(4096, entrada.length * 5));
+
+    function espaco(n) {
+      if (fim + n <= saida.length) return;
+      const maior = new Uint8Array(Math.max(saida.length * 2, fim + n));
+      maior.set(saida.subarray(0, fim));
+      saida = maior;
+    }
+    function umBit() {
+      if (pos >= entrada.length) throw new Error('o fluxo comprimido terminou no meio');
+      const b = (entrada[pos] >> bit) & 1;
+      bit = (bit + 1) & 7;
+      if (bit === 0) pos++;
+      return b;
+    }
+    function bits(n) {
+      let v = 0;
+      for (let i = 0; i < n; i++) v |= umBit() << i;
+      return v;
+    }
+
+    /* Árvore canônica: guarda, por comprimento de código, quantos existem, qual
+       é o primeiro código e onde começam os símbolos daquele comprimento. */
+    function arvore(comprimentos) {
+      let maior = 0;
+      for (let i = 0; i < comprimentos.length; i++) {
+        if (comprimentos[i] > maior) maior = comprimentos[i];
+      }
+      const quantos = new Int32Array(maior + 1);
+      for (let i = 0; i < comprimentos.length; i++) {
+        if (comprimentos[i]) quantos[comprimentos[i]]++;
+      }
+      const primeiro = new Int32Array(maior + 2);
+      const inicio = new Int32Array(maior + 2);
+      const simbolos = [];
+      let codigo = 0, k = 0;
+      for (let c = 1; c <= maior; c++) {
+        primeiro[c] = codigo;
+        inicio[c] = k;
+        for (let s = 0; s < comprimentos.length; s++) {
+          if (comprimentos[s] === c) simbolos.push(s);
+        }
+        k += quantos[c];
+        codigo = (codigo + quantos[c]) << 1;
+      }
+      return { maior, quantos, primeiro, inicio, simbolos };
+    }
+
+    function simbolo(t) {
+      let codigo = 0;
+      for (let c = 1; c <= t.maior; c++) {
+        codigo = (codigo << 1) | umBit();
+        const n = t.quantos[c];
+        const desloca = codigo - t.primeiro[c];
+        if (n > 0 && desloca < n) return t.simbolos[t.inicio[c] + desloca];
+      }
+      throw new Error('código Huffman inválido');
+    }
+
+    let fixaLit = null, fixaDist = null;
+    function tabelasFixas() {
+      if (fixaLit) return;
+      const lit = new Int32Array(288);
+      for (let i = 0; i < 288; i++) lit[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;
+      const dist = new Int32Array(30).fill(5);
+      fixaLit = arvore(lit);
+      fixaDist = arvore(dist);
+    }
+
+    for (;;) {
+      const ultimo = umBit();
+      const tipo = bits(2);
+
+      if (tipo === 0) {                                   // bloco sem compressão
+        if (bit) { bit = 0; pos++; }
+        if (pos + 4 > entrada.length) throw new Error('bloco literal truncado');
+        const n = entrada[pos] | (entrada[pos + 1] << 8);
+        pos += 4;                                         // pula LEN e ~LEN
+        if (pos + n > entrada.length) throw new Error('bloco literal maior que o arquivo');
+        espaco(n);
+        saida.set(entrada.subarray(pos, pos + n), fim);
+        fim += n; pos += n;
+      } else {
+        let arvLit, arvDist;
+        if (tipo === 1) {
+          tabelasFixas();
+          arvLit = fixaLit; arvDist = fixaDist;
+        } else if (tipo === 2) {
+          const nLit = bits(5) + 257;
+          const nDist = bits(5) + 1;
+          const nCod = bits(4) + 4;
+          const compCod = new Int32Array(19);
+          for (let i = 0; i < nCod; i++) compCod[INFLATE_ORDEM[i]] = bits(3);
+          const arvCod = arvore(compCod);
+          const comprimentos = new Int32Array(nLit + nDist);
+          for (let i = 0; i < comprimentos.length;) {
+            const s = simbolo(arvCod);
+            if (s < 16) { comprimentos[i++] = s; }
+            else if (s === 16) {
+              if (i === 0) throw new Error('repetição sem nada para repetir');
+              const anterior = comprimentos[i - 1];
+              let r = 3 + bits(2);
+              while (r-- && i < comprimentos.length) comprimentos[i++] = anterior;
+            } else if (s === 17) {
+              let r = 3 + bits(3);
+              while (r-- && i < comprimentos.length) comprimentos[i++] = 0;
+            } else {
+              let r = 11 + bits(7);
+              while (r-- && i < comprimentos.length) comprimentos[i++] = 0;
+            }
+          }
+          arvLit = arvore(comprimentos.subarray(0, nLit));
+          arvDist = arvore(comprimentos.subarray(nLit));
+        } else {
+          throw new Error('tipo de bloco desconhecido no arquivo comprimido');
+        }
+
+        for (;;) {
+          const s = simbolo(arvLit);
+          if (s < 256) { espaco(1); saida[fim++] = s; continue; }
+          if (s === 256) break;                            // fim do bloco
+          const iComp = s - 257;
+          if (iComp >= INFLATE_COMP.length) throw new Error('comprimento inválido');
+          const comprimento = INFLATE_COMP[iComp] + bits(INFLATE_COMP_EXTRA[iComp]);
+          const iDist = simbolo(arvDist);
+          if (iDist >= INFLATE_DIST.length) throw new Error('distância inválida');
+          const distancia = INFLATE_DIST[iDist] + bits(INFLATE_DIST_EXTRA[iDist]);
+          if (distancia > fim) throw new Error('referência para antes do começo');
+          espaco(comprimento);
+          let de = fim - distancia;
+          for (let i = 0; i < comprimento; i++) saida[fim++] = saida[de++];
+        }
+      }
+      if (ultimo) break;
+    }
+    return saida.slice(0, fim);
+  }
 
   async function lerZip(buffer) {
     const dv = new DataView(buffer);
@@ -956,6 +1117,7 @@
       const bruto = new Uint8Array(buffer, inicio, e.compactado);
       if (e.metodo === 0) return bruto.slice();
       if (e.metodo !== 8) throw new Error('Compressão não suportada dentro do EPUB.');
+      if (!TEM_DEFLATE_RAW) return inflarCru(bruto);
       const fluxo = new Blob([bruto]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
       return new Uint8Array(await new Response(fluxo).arrayBuffer());
     }
@@ -2841,23 +3003,13 @@
       : ' Neste navegador o armazenamento está bloqueado, então o livro vale só'
         + ' enquanto a página estiver aberta.';
   });
-  /* O que o ZIP usa é o modo 'deflate-raw', que chegou aos navegadores depois
-     de 'gzip' e 'deflate'. Testar só se a API existe deixaria passar um Safari
-     que a tem sem esse modo — e aí a falha só apareceria ao abrir o livro,
-     parecendo defeito do arquivo. Melhor construir uma de verdade e ver. */
-  (function conferirDescompactacao() {
-    let motivo = '';
-    if (typeof DecompressionStream === 'undefined') {
-      motivo = 'Este navegador não descompacta arquivos ZIP.';
-    } else {
-      try { new DecompressionStream('deflate-raw'); }
-      catch (e) { motivo = 'Este navegador descompacta ZIP, mas não no modo que o EPUB usa.'; }
-    }
-    if (!motivo) return;
-    $('abrir').disabled = true;
-    $('abrir').textContent = 'Navegador sem suporte a EPUB';
-    aviso(motivo + ' Atualize o sistema, ou use o Chrome ou o Edge.');
-  })();
+  /* Não há mais navegador sem suporte a EPUB: quando falta o 'deflate-raw' do
+     DecompressionStream, a descompactação em JavaScript assume. Isso é só um
+     registro para o console — se alguém relatar lentidão ao abrir um livro
+     grande, é a primeira coisa que se quer saber. */
+  if (!TEM_DEFLATE_RAW) {
+    console.info('Leitor: sem deflate-raw nativo; descompactando em JavaScript.');
+  }
   desenharEstante();
 })();
 </script>
