@@ -138,6 +138,28 @@ with sync_playwright() as p:
     if gravado["fronteira"] != 120 or len(gravado["marcas"]) != 2:
         falhas.append("o repositório não ficou com a mescla")
 
+    print("4b. a memória de capítulos atravessa, e o mais adiantado ganha")
+    r = pg.evaluate("""async () => {
+      // outro aparelho já deixou resumos dos capítulos 0 e 1
+      await api.biblioteca.sincronizarResumos('aa11', {
+        0: {ate: 9, texto: 'resumo do outro aparelho', em: 100},
+        1: {ate: 19, texto: 'cap 1 pelo outro', em: 100}});
+      // este aparelho tem o 1 mais adiantado (leu até mais longe) e um 2 novo
+      return await api.biblioteca.sincronizarResumos('aa11', {
+        1: {ate: 25, texto: 'cap 1 mais completo', em: 200},
+        2: {ate: 39, texto: 'cap 2 só daqui', em: 200}});
+    }""")
+    print("   capítulos na memória:", sorted(r.keys()))
+    print("   cap 1 ficou com:", r["1"]["texto"])
+    if sorted(r.keys()) != ["0", "1", "2"]:
+        falhas.append(f"a memória não se somou entre aparelhos: {sorted(r.keys())}")
+    if r["1"]["texto"] != "cap 1 mais completo":
+        falhas.append("o resumo menos adiantado sobrescreveu o mais adiantado")
+    if r["0"]["texto"] != "resumo do outro aparelho":
+        falhas.append("perdeu o resumo que só o outro aparelho tinha")
+    if "resumos/aa11.json" not in pg.evaluate("() => window.__GH.arquivos()"):
+        falhas.append("a memória não foi gravada no repositório")
+
     print("5. baixar o livro de volta, byte a byte")
     r = pg.evaluate("""async () => {
       const {livros} = await api.biblioteca.listar();

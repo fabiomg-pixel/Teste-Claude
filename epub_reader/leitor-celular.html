@@ -900,6 +900,10 @@
         <span aria-hidden="true">🔎</span> Crítica e contexto da obra
       </button>
       <p class="vazio" id="nota-critica" style="padding:.45rem .3rem 0"></p>
+      <p class="vazio" id="estado-memoria" style="padding:.45rem .3rem 0"></p>
+      <button class="acao secundaria oculto" id="completar-memoria"
+              style="margin:.4rem .3rem 0">Resumir os capítulos que faltam</button>
+      <p class="vazio" id="estado-custo" style="padding:.45rem .3rem 0"></p>
     </div>
 
     <div class="pilha">
@@ -995,7 +999,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 15;
+  const VERSAO = 16;
 
   /* Dentro do artifact publicado a política de segurança bloqueia toda
      requisição a outro servidor — GitHub e API da Anthropic incluídos. Esta
@@ -1654,6 +1658,7 @@ setTimeout(function () {
     selecionado: '',
     modoPergunta: 'perguntar',
     critica: estado.ler('leitor.critica', false),
+    resumos: {},         // { <índice do capítulo>: {ate, texto, em} }
   };
 
   function chaveDoLivro(id) { return 'leitor.estado.' + id; }
@@ -1812,7 +1817,16 @@ setTimeout(function () {
     if (bloco == null || Number.isNaN(bloco)) return;
     if (bloco !== app.bloco) app.posicaoEm = Date.now() / 1000;
     app.bloco = bloco;
-    if (bloco > app.fronteira) app.fronteira = bloco;
+    if (bloco > app.fronteira) {
+      const antes = app.fronteira;
+      app.fronteira = bloco;
+      /* Cruzou o fim de algum capítulo? Então há memória nova para fazer. Só
+         aqui, e não a cada pergunta: resumir na hora de perguntar deixaria a
+         primeira pergunta lenta e caríssima. */
+      const cruzou = app.livro.capitulos.some(
+        (c) => c.ultimo >= c.primeiro && c.ultimo > antes && c.ultimo <= bloco);
+      if (cruzou) memoria.enfileirar();
+    }
     salvarEstado();
   }
 
@@ -2248,6 +2262,17 @@ setTimeout(function () {
       partes.push('- Cap. ' + (c.indice + 1) + ': ' + c.titulo + parcial);
     });
 
+    /* A memória longa. Sem ela o modelo só vê o fim do que foi lido, e um
+       romance de trinta capítulos vira os três últimos. */
+    const comResumo = lidos.filter((c) => app.resumos[c.indice]);
+    if (comResumo.length) {
+      partes.push('', '## O que aconteceu em cada capítulo que já li');
+      comResumo.forEach((c) => {
+        partes.push('### Cap. ' + (c.indice + 1) + ' — ' + (c.titulo || 'sem título'));
+        partes.push(app.resumos[c.indice].texto);
+      });
+    }
+
     const busca = [pergunta, app.selecionado].filter(Boolean).join(' ');
     const achados = busca ? trechosRelevantes(busca, 6) : [];
     if (achados.length) {
@@ -2306,6 +2331,8 @@ setTimeout(function () {
   function atualizarPrevia() {
     if (!app.livro) return;
     desenharAbertura();
+    memoria.desenhar();
+    desenharCusto();
     const texto = montarPacote();
     $('previa').textContent = texto;
     const palavras = texto.split(/\s+/).length;
@@ -2479,6 +2506,35 @@ setTimeout(function () {
     apagarChave() { this.mudar('chave', ''); },
     salvarModelo(m) { this.mudar('modelo', m); },
 
+    /* Uma chamada de ida e volta, sem streaming: é o que os resumos de capítulo
+       precisam. Diferente de `perguntar`, esta REJEITA — quem chama está num
+       laço de fundo e precisa saber que parou, para não tentar mil vezes. */
+    async resumir(sistema, mensagem, modelo, teto) {
+      const ficha = this.ficha;
+      const resposta = await fetch(API_ANTHROPIC, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': ficha.chave,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: modelo,
+          max_tokens: teto || 1200,
+          system: sistema,
+          messages: [{ role: 'user', content: mensagem }],
+        }),
+      });
+      if (!resposta.ok) throw new Error((await queixaDaAPI(resposta)).texto);
+      const corpo = await resposta.json();
+      if (corpo.stop_reason === 'refusal') throw new Error('o modelo recusou resumir este capítulo');
+      const texto = (corpo.content || [])
+        .filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+      if (!texto) throw new Error('o resumo voltou vazio');
+      return { texto, uso: corpo.usage || null };
+    },
+
     /* Nunca rejeita: a conversa inteira reporta falha por __ponte.erro, e uma
        promessa rejeitada aqui não seria vista por ninguém — o balão ficaria
        «pensando» para sempre.
@@ -2537,16 +2593,23 @@ setTimeout(function () {
 
           if (resposta.ok) {
             let motivo = null;
+            /* O uso chega em dois pedaços: a entrada no message_start, a saída
+               no message_delta. Somar os dois é o que dá a conta certa. */
+            const uso = {};
             await correnteSSE(resposta, (ev) => {
               if (ev.type === 'content_block_delta' && ev.delta) {
                 if (ev.delta.type === 'text_delta') window.__ponte.delta(id, ev.delta.text);
                 else if (ev.delta.type === 'thinking_delta') window.__ponte.pensando(id, ev.delta.thinking);
+              } else if (ev.type === 'message_start' && ev.message) {
+                Object.assign(uso, ev.message.usage || {});
               } else if (ev.type === 'message_delta' && ev.delta) {
                 motivo = ev.delta.stop_reason || motivo;
+                Object.assign(uso, ev.usage || {});
               } else if (ev.type === 'error') {
                 throw new Error((ev.error && ev.error.message) || 'a API interrompeu a resposta');
               }
             });
+            contabilizar(modelo, uso);
             window.__ponte.fim(id, motivo);
             return;
           }
@@ -2778,6 +2841,223 @@ setTimeout(function () {
     ao('enviar', 'click', enviarPergunta);
     atualizarChave();
   }
+
+  /* ------------------------------------------------- o que isto custou
+
+     A API devolve a contagem de tokens em toda resposta, e jogar isso fora é
+     deixar a pessoa gastar no escuro. Os preços são por milhão de tokens e vão
+     envelhecer; o rodapé diz de quando são, para ninguém tomar a conta por
+     exata. Tudo fica no aparelho — é informação de quem paga. */
+  const PRECOS = {                          // US$ por milhão de tokens, 09/2026
+    'claude-opus-5-5': { entrada: 4, saida: 20, cacheLido: 0.20 },
+    'claude-opus-5': { entrada: 5, saida: 25, cacheLido: 0.50 },
+    'claude-sonnet-5': { entrada: 2, saida: 10, cacheLido: 0.20 },
+    'claude-haiku-4-5': { entrada: 1, saida: 5, cacheLido: 0.10 },
+  };
+
+  function mesCorrente() { return new Date().toISOString().slice(0, 7); }
+
+  function contabilizar(modelo, uso) {
+    if (!uso) return;
+    let livro = estado.ler('leitor.custo', { mes: '', modelos: {}, ultimo: 0 });
+    if (livro.mes !== mesCorrente()) livro = { mes: mesCorrente(), modelos: {}, ultimo: 0 };
+    const c = livro.modelos[modelo] || { entrada: 0, saida: 0, cacheLido: 0, cacheGravado: 0, pedidos: 0 };
+    c.entrada += uso.input_tokens || 0;
+    c.saida += uso.output_tokens || 0;
+    c.cacheLido += uso.cache_read_input_tokens || 0;
+    c.cacheGravado += uso.cache_creation_input_tokens || 0;
+    c.pedidos += 1;
+    livro.modelos[modelo] = c;
+    livro.ultimo = precoDe(modelo, uso);
+    estado.gravar('leitor.custo', livro);
+    desenharCusto();
+  }
+
+  function precoDe(modelo, uso) {
+    const p = PRECOS[modelo];
+    if (!p) return 0;
+    return ((uso.input_tokens || 0) * p.entrada
+          + (uso.output_tokens || 0) * p.saida
+          + (uso.cache_read_input_tokens || 0) * p.cacheLido
+          + (uso.cache_creation_input_tokens || 0) * p.entrada * 1.25) / 1e6;
+  }
+
+  function contaDoMes() {
+    const livro = estado.ler('leitor.custo', { mes: '', modelos: {}, ultimo: 0 });
+    if (livro.mes !== mesCorrente()) return { total: 0, pedidos: 0, ultimo: 0 };
+    let total = 0;
+    let pedidos = 0;
+    Object.keys(livro.modelos).forEach((m) => {
+      const c = livro.modelos[m];
+      total += precoDe(m, {
+        input_tokens: c.entrada, output_tokens: c.saida,
+        cache_read_input_tokens: c.cacheLido, cache_creation_input_tokens: c.cacheGravado,
+      });
+      pedidos += c.pedidos || 0;
+    });
+    return { total, pedidos, ultimo: livro.ultimo || 0 };
+  }
+
+  /* Centavos de dólar com duas casas viram «0,00» e não informam nada; abaixo
+     de um centavo o que interessa é a ordem de grandeza. */
+  function emDinheiro(v) {
+    if (!v) return 'US$ 0';
+    if (v < 0.01) return 'menos de US$ 0,01';
+    return 'US$ ' + v.toFixed(2).replace('.', ',');
+  }
+
+  function desenharCusto() {
+    const alvo = $('estado-custo');
+    if (!alvo) return;
+    const conta = contaDoMes();
+    if (!conta.pedidos) { alvo.textContent = ''; return; }
+    alvo.textContent = 'Última pergunta: ' + emDinheiro(conta.ultimo)
+      + ' · este mês: ' + emDinheiro(conta.total)
+      + ' em ' + conta.pedidos + (conta.pedidos === 1 ? ' pedido' : ' pedidos');
+  }
+
+  /* ================================================================== *
+   * 5d. A memória do livro: um resumo por capítulo
+   *
+   * Sem isto o modelo conhece o livro por «os últimos 4.500 caracteres mais
+   * alguns trechos achados por palavra-chave». Num romance longo ele não lembra
+   * do capítulo 3, e a conversa fica presa ao presente.
+   *
+   * Um resumo por capítulo, gerado quando a leitura cruza o fim do capítulo e
+   * guardado no repositório, dá memória longa por algumas páginas de texto — e
+   * é o que torna possível incorporar volumes anteriores de uma série sem
+   * mandar dois romances inteiros a cada pergunta.
+   *
+   * Só capítulo inteiramente lido é resumido. O resumo não pode ser a porta que
+   * o texto não lido usa para entrar.
+   * ================================================================== */
+
+  /* Resumir é extração, não raciocínio: um modelo mais barato serve, e a conta
+     de um romance de trinta capítulos fica em centavos. Sonnet e não Haiku
+     porque um resumo ruim envenena toda resposta futura que o use. */
+  const MODELO_RESUMO = 'claude-sonnet-5';
+
+  const REGRAS_RESUMO = [
+    'Resuma o capítulo abaixo para servir de memória de leitura.',
+    '',
+    'Escreva de 80 a 150 palavras, em português do Brasil, em prosa corrida.',
+    'Registre: o que acontece, quem aparece e o que faz, mudanças de lugar ou de',
+    'tempo, o que fica pendente. Nomes próprios por extenso — este resumo vai ser',
+    'lido sem o texto ao lado.',
+    '',
+    'Só o que está no capítulo. Não interprete além do que o texto sustenta, não',
+    'antecipe nada, não use o que você saiba desta obra por fora, e não diga que',
+    'algo será importante depois. Sem preâmbulo: comece pelo resumo.',
+  ].join('\n');
+
+  function chaveResumos(id) { return 'leitor.resumos.' + id; }
+
+  const memoria = {
+    fila: [],
+    moendo: false,
+    /* A última falha fica guardada, e não passada como argumento: o `finally`
+       redesenha ao terminar a fila e apagava a mensagem de erro no mesmo
+       instante em que ela aparecia. Um erro que só existe por meio segundo é
+       um erro que ninguém leu. */
+    ultimoErro: '',
+
+    /* Capítulo inteiramente lido: começou e acabou antes da fronteira. Um
+       capítulo vazio (capa, folha de rosto) tem ultimo < primeiro e não conta. */
+    lidosPorInteiro() {
+      if (!app.livro) return [];
+      return app.livro.capitulos.filter(
+        (c) => c.ultimo >= c.primeiro && c.ultimo <= app.fronteira);
+    },
+
+    faltam() {
+      return this.lidosPorInteiro().filter((c) => !app.resumos[c.indice]);
+    },
+
+    guardar() {
+      if (app.livro) estado.gravar(chaveResumos(app.livro.id), app.resumos);
+    },
+
+    /* Enfileira o que falta. Chamado quando a leitura cruza um capítulo e pelo
+       botão de completar — o mesmo caminho nos dois casos. */
+    enfileirar() {
+      if (!motor || !motor.resumir || !motor.temChave()) return;
+      const jaNaFila = new Set(this.fila.map((c) => c.indice));
+      this.faltam().forEach((c) => { if (!jaNaFila.has(c.indice)) this.fila.push(c); });
+      this.moer();
+    },
+
+    async moer() {
+      if (this.moendo || !this.fila.length) return;
+      this.moendo = true;
+      const livroDaVez = app.livro && app.livro.id;
+      try {
+        while (this.fila.length) {
+          /* Se a pessoa fechou o livro ou trocou de livro, pare: continuar
+             gravaria o resumo de um capítulo em cima do estado de outro. */
+          if (!app.livro || app.livro.id !== livroDaVez) break;
+          const c = this.fila[0];
+          const texto = app.livro.blocos
+            .filter((b) => b.i >= c.primeiro && b.i <= c.ultimo).map((b) => b.t).join('\n\n');
+          if (!texto.trim()) { this.fila.shift(); continue; }
+          try {
+            const saida = await motor.resumir(REGRAS_RESUMO,
+              'Título do capítulo: ' + (c.titulo || '(sem título)') + '\n\n' + texto,
+              MODELO_RESUMO, 600);
+            app.resumos[c.indice] = { ate: c.ultimo, texto: saida.texto, em: Date.now() / 1000 };
+            this.guardar();
+            this.ultimoErro = '';
+            contabilizar(MODELO_RESUMO, saida.uso);
+          } catch (erro) {
+            /* Uma falha não pode virar um laço quente: sai da fila, a contagem
+               na tela mostra que falta, e o botão de completar tenta de novo. */
+            console.warn('Leitor: não resumi o capítulo ' + (c.indice + 1) + ' —', erro.message);
+            this.ultimoErro = erro.message;
+            this.fila.shift();
+            this.desenhar();
+            continue;
+          }
+          this.fila.shift();
+          this.desenhar();
+          atualizarPrevia();
+        }
+      } finally {
+        this.moendo = false;
+        this.desenhar();
+        if (app.livro && sincronia.ligada) sincronizarTudo(true);
+      }
+    },
+
+    desenhar() {
+      const alvo = $('estado-memoria');
+      if (!alvo || !app.livro) return;
+      const todos = this.lidosPorInteiro().length;
+      const prontos = todos - this.faltam().length;
+      const botao = $('completar-memoria');
+      if (!motor || !motor.resumir) {
+        alvo.textContent = 'A memória por capítulo precisa da chave da API no navegador.';
+        if (botao) botao.classList.add('oculto');
+        return;
+      }
+      if (this.moendo) {
+        alvo.textContent = 'Resumindo capítulos… ' + prontos + ' de ' + todos + '.';
+      } else if (this.ultimoErro && prontos < todos) {
+        alvo.textContent = 'Parei de resumir: ' + this.ultimoErro
+          + ' (' + prontos + ' de ' + todos + ')';
+      } else if (!todos) {
+        alvo.textContent = 'Nenhum capítulo inteiro lido ainda — a memória começa no primeiro.';
+      } else if (prontos === todos) {
+        alvo.textContent = 'Memória do livro: ' + prontos + ' de ' + todos
+          + ' capítulos lidos, todos resumidos.';
+      } else {
+        alvo.textContent = 'Memória do livro: ' + prontos + ' de ' + todos
+          + ' capítulos resumidos.';
+      }
+      if (botao) {
+        botao.classList.toggle('oculto',
+          this.moendo || prontos === todos || !motor.temChave());
+      }
+    },
+  };
 
   /* ================================================================== *
    * 5c. Sincronização entre aparelhos
@@ -3050,6 +3330,7 @@ setTimeout(function () {
 
   const CAMINHO_LIVRO = (imp) => 'livros/' + imp + '.epub';
   const CAMINHO_ESTADO = (imp) => 'estado/' + imp + '.json';
+  const CAMINHO_RESUMOS = (imp) => 'resumos/' + imp + '.json';
 
   const biblioteca = {
     /* O índice existe para a estante desenhar sem baixar livro nenhum: sem
@@ -3097,6 +3378,31 @@ setTimeout(function () {
         mudancas.push({ caminho: 'indice.json', texto: JSON.stringify(indice, null, 1) });
         return { mudancas, resultado: mesclado,
                  mensagem: 'Leitor: ' + (registro.titulo || imp) };
+      });
+    },
+
+    /* Os resumos moram num arquivo próprio: são grandes perto do estado e mudam
+       em outro ritmo, e juntar os dois faria toda virada de página reenviar a
+       memória inteira do livro. A mescla é por capítulo, e o mais adiantado
+       ganha — dois aparelhos resumindo o mesmo capítulo dão o mesmo resultado. */
+    async sincronizarResumos(imp, meus) {
+      return this.gravar(async (arvore) => {
+        const remotos = (await github.lerJson(arvore, CAMINHO_RESUMOS(imp))) || {};
+        const juntos = Object.assign({}, remotos);
+        Object.keys(meus || {}).forEach((i) => {
+          const meu = meus[i];
+          const dele = juntos[i];
+          if (!dele || (meu.ate || 0) > (dele.ate || 0)) juntos[i] = meu;
+        });
+        if (JSON.stringify(remotos) === JSON.stringify(juntos)) {
+          return { mudancas: [], resultado: juntos };
+        }
+        return {
+          mudancas: [{ caminho: CAMINHO_RESUMOS(imp),
+                       texto: JSON.stringify(juntos, null, 1) }],
+          resultado: juntos,
+          mensagem: 'Leitor: memória de capítulos',
+        };
       });
     },
 
@@ -3405,6 +3711,16 @@ setTimeout(function () {
         noRepo.add(registro.impressao);
       }
       aplicarEstado(registro.id, mesclado);
+
+      /* A memória de capítulos, se este aparelho tem alguma ou o repositório
+         tem. Um livro sem resumo nenhum dos dois lados não gasta uma chamada. */
+      const meusResumos = estado.ler(chaveResumos(registro.id), {});
+      const emUso = app.livro && app.livro.id === registro.id;
+      if (Object.keys(meusResumos).length || emUso) {
+        const juntos = await biblioteca.sincronizarResumos(registro.impressao, meusResumos);
+        estado.gravar(chaveResumos(registro.id), juntos);
+        if (emUso) { app.resumos = juntos; memoria.desenhar(); }
+      }
     }
   }
 
@@ -3580,6 +3896,7 @@ setTimeout(function () {
     const marcador = estado.ler(chaveDoLivro(id), { bloco: 0, fronteira: 0, marcas: [] });
     app.bloco = marcador.bloco || 0;
     app.fronteira = Math.max(marcador.fronteira || 0, app.bloco);
+    app.resumos = estado.ler(chaveResumos(id), {});
     app.marcas = marcador.marcas || [];
     app.posicaoEm = marcador.posicaoEm || 0;
     $('obra-titulo').textContent = livro.meta.titulo || '';
@@ -3805,6 +4122,12 @@ setTimeout(function () {
     clearTimeout(window._previa);
     window._previa = setTimeout(atualizarPrevia, 250);
   });
+  ao('completar-memoria', 'click', () => {
+    if (!motor || !motor.temChave()) { $('painel-chave').classList.remove('oculto'); return; }
+    memoria.enfileirar();
+    memoria.desenhar();
+  });
+
   ao('abrir-critica', 'click', () => {
     app.critica = !app.critica;
     estado.gravar('leitor.critica', app.critica);
@@ -3946,7 +4269,8 @@ setTimeout(function () {
   if (typeof window.__leitorTestes === 'function') {
     window.__leitorTestes({ github, biblioteca, sincronia, sincronizarTudo,
                             mesclarEstados, inflarCru, impressaoDigital,
-                            motorNavegador, montarPedido, app,
+                            motorNavegador, montarPedido, app, memoria,
+                            desenharCusto, contaDoMes, contabilizar,
                             estado, guarda, VERSAO });
   }
 

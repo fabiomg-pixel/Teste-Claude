@@ -87,6 +87,20 @@ window.__API = (function () {
     }
     if (roteiro === 'redeFora') throw new TypeError('Load failed');
 
+    /* Pedido de ida e volta, sem stream: é o caminho dos resumos de capítulo.
+       Devolve uma marca rastreável com o começo do que recebeu, para o teste
+       poder conferir QUAL capítulo foi resumido. */
+    if (!corpo.stream) {
+      if (roteiro === 'resumoRuim') return json({ error: { message: 'Overloaded' } }, 529);
+      const recebido = String(corpo.messages[0].content);
+      return json({
+        id: 'msg_r', type: 'message', role: 'assistant', model: corpo.model,
+        content: [{ type: 'text', text: 'RESUMO[' + recebido.slice(0, 70).replace(/\n/g, ' ') + ']' }],
+        stop_reason: 'end_turn',
+        usage: { input_tokens: 1200, output_tokens: 90 },
+      });
+    }
+
     const eventos = EVENTOS[roteiro === 'semPensar' ? 'normal' : roteiro] || EVENTOS.normal;
     return new Response(emPedacos(eventos),
       { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
