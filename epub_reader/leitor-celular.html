@@ -969,7 +969,7 @@ setTimeout(function () {
   'use strict';
 
   /* Sobe a cada mudança que vale a pena distinguir num aparelho. */
-  const VERSAO = 11;
+  const VERSAO = 12;
 
   /* Ligar evento por id, tolerando a ausência. Um único elemento faltante
      lançava um TypeError que interrompia a ligação de TODOS os eventos
@@ -2509,26 +2509,28 @@ setTimeout(function () {
          expirar é o tipo de falha que faz a pessoa achar que perdeu tudo. */
       let detalhe = '';
       try { detalhe = (await resposta.json()).message || ''; } catch (e) { /* sem corpo */ }
+      let texto;
       if (resposta.status === 401) {
-        throw new Error('O GitHub recusou o token. Ele pode ter expirado — '
-                      + 'gere outro e reconecte.');
+        texto = 'O GitHub recusou o token. Ele pode ter expirado — '
+              + 'gere outro e reconecte.';
+      } else if (resposta.status === 403 && /rate limit/i.test(detalhe)) {
+        texto = 'Limite de chamadas do GitHub atingido. Tente daqui a pouco.';
+      } else if (resposta.status === 403) {
+        texto = 'O token não tem permissão para este repositório '
+              + '(precisa de Contents: read and write).';
+      } else if (resposta.status === 404) {
+        texto = 'Repositório não encontrado — confira o nome, e se o '
+              + 'token alcança este repositório.';
+      } else if (resposta.status === 409) {
+        texto = 'O repositório não tem nenhum commit ainda.';
+      } else {
+        texto = 'GitHub respondeu ' + resposta.status + (detalhe ? ': ' + detalhe : '');
       }
-      if (resposta.status === 403 && /rate limit/i.test(detalhe)) {
-        throw new Error('Limite de chamadas do GitHub atingido. Tente daqui a pouco.');
-      }
-      if (resposta.status === 403) {
-        throw new Error('O token não tem permissão para este repositório '
-                      + '(precisa de Contents: read and write).');
-      }
-      if (resposta.status === 404) {
-        throw new Error('Repositório não encontrado — confira o nome, e se o '
-                      + 'token alcança este repositório.');
-      }
-      if (resposta.status === 409) {
-        throw new Error('O repositório está vazio. Crie-o com um README.');
-      }
-      throw new Error('GitHub respondeu ' + resposta.status
-                    + (detalhe ? ': ' + detalhe : ''));
+      /* O status viaja junto: «vazio» e «não existe» pedem reações diferentes,
+         e sem isto quem chama teria de adivinhar lendo a mensagem. */
+      const erro = new Error(texto);
+      erro.status = resposta.status;
+      throw erro;
     },
 
     caminhoRepo() {
@@ -2546,7 +2548,37 @@ setTimeout(function () {
                       + 'Precisa de Contents: read and write.');
       }
       this.config = { dono, repo, token, ramo: dados.default_branch || 'main' };
-      return { privado: !!dados.private, ramo: dados.default_branch };
+      const semeado = await this.garantirRamo();
+      return { privado: !!dados.private, ramo: dados.default_branch, semeado };
+    },
+
+    /* Um repositório criado sem «Add a README» não tem commit nenhum, e sem
+       commit não existe ramo para escrever: toda leitura da cabeça responde
+       409. Mandar a pessoa ao site criar um arquivo à mão é passar-lhe um
+       trabalho que nós podemos fazer, e num aparelho de bolso é pior ainda.
+       A API de conteúdo cria o ramo padrão junto com o primeiro arquivo. */
+    async garantirRamo() {
+      try {
+        await this.cabeca();
+        return false;                      // já tem história; nada a fazer
+      } catch (erro) {
+        if (erro.status !== 409 && erro.status !== 404) throw erro;
+      }
+      const texto = '# Biblioteca do leitor\n\n'
+        + 'Os arquivos deste repositório são escritos pelo leitor de EPUB:\n\n'
+        + '- `livros/` os EPUBs, como você os abriu\n'
+        + '- `estado/` onde você parou em cada um, e os destaques\n'
+        + '- `indice.json` título e autor de cada livro\n\n'
+        + 'Dá para apagar um livro daqui à mão; o leitor não o trará de volta.\n';
+      await this.pedir(this.caminhoRepo() + '/contents/LEIA-ME.md', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'Primeiro commit, feito pelo leitor',
+          content: paraBase64(new TextEncoder().encode(texto)),
+        }),
+      });
+      return true;
     },
 
     // ------------------------------------------------------------ leitura
@@ -3328,9 +3360,10 @@ setTimeout(function () {
 
     $('desligar-gh').classList.remove('oculto');
     const nome = alvo.dono + '/' + alvo.repo;
-    aviso(ficha.privado
-      ? 'Ligado a ' + nome
-      : 'Ligado a ' + nome + ' — atenção: este repositório é público.');
+    let dito = 'Ligado a ' + nome;
+    if (ficha.semeado) dito += ' — estava vazio, criei o primeiro commit';
+    if (!ficha.privado) dito += ' — atenção: este repositório é público.';
+    aviso(dito);
     await sincronizarTudo();
   });
 

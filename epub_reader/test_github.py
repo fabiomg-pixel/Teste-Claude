@@ -51,6 +51,33 @@ with sync_playwright() as p:
     if not r.get("privado"):
         falhas.append("não reconheceu o repositório privado")
 
+    print("1b. um repositório criado sem README — sem commit nenhum")
+    # É o caso de quem clica «New repository» e não marca «Add a README»: o
+    # repositório existe, e toda leitura da cabeça responde 409. O leitor tem de
+    # resolver isso sozinho; mandar a pessoa ao site fazer um commit à mão foi o
+    # que ele fazia, e é trabalho nosso.
+    pg.evaluate("() => window.__GH.esvaziar()")
+    r = pg.evaluate("async () => await api.github.conectar('fabio','biblioteca','ficha-valida')")
+    print("   conectar num repositório vazio →", r)
+    if not r.get("semeado"):
+        falhas.append("não percebeu que o repositório estava vazio")
+    if not pg.evaluate("() => window.__GH.temCabeca()"):
+        falhas.append("o repositório continuou sem commit depois de conectar")
+    print("   agora tem:", pg.evaluate("() => window.__GH.arquivos()"))
+    # e daí para frente é um repositório normal: a gravação tem de funcionar
+    r = pg.evaluate("""async () => {
+      await api.biblioteca.sincronizarEstado('zz00',
+        {fronteira: 3, posicao: {bloco: 3, em: 10}, marcas: []}, 'Semente');
+      return window.__GH.arquivos();
+    }""")
+    print("   grava depois de semear:", r)
+    if "estado/zz00.json" not in r:
+        falhas.append("não consegui gravar no repositório recém-semeado")
+    # conectar de novo não semeia duas vezes
+    r = pg.evaluate("async () => await api.github.conectar('fabio','biblioteca','ficha-valida')")
+    if r.get("semeado"):
+        falhas.append("semeou de novo um repositório que já tinha commits")
+
     print("2. enviar um livro de 2 MB (caminho de blobs)")
     pg.evaluate("""async () => {
       const bytes = new Uint8Array(2*1024*1024);

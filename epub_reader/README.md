@@ -114,8 +114,9 @@ O repositório é a verdade; o navegador é cache. Os livros e a posição de le
 ficam lá, e qualquer aparelho ligado ao mesmo repositório vê a mesma estante, a
 mesma página e os mesmos destaques.
 
-1. Em [github.com/new](https://github.com/new), crie um repositório **privado**
-   e marque *Add a README* (um repositório vazio não tem ramo para escrever).
+1. Em [github.com/new](https://github.com/new), crie um repositório **privado**.
+   Não precisa marcar *Add a README*: um repositório sem commit nenhum não tem
+   ramo para escrever, e o leitor faz o primeiro commit ele mesmo ao ligar.
 2. Em **Settings → Developer settings → Personal access tokens → Fine-grained
    tokens**, gere um token com acesso **só a esse repositório** e a permissão
    **Contents: read and write**. Nada mais.
@@ -124,7 +125,9 @@ mesma página e os mesmos destaques.
    também serve) e cole o token → **Ligar ao repositório**.
 
 O acesso é conferido na hora: nome errado, token sem permissão ou token expirado
-dão uma mensagem que diz o que fazer, e nada é guardado. Se o token expirar
+dão uma mensagem que diz o que fazer, e nada é guardado. Se o repositório estiver
+vazio, o leitor cria o `LEIA-ME.md` e segue — em vez de mandar você ao site fazer
+um commit à mão, de celular. Se o token expirar
 depois, a sincronização de fundo **não** falha calada — aparece o aviso e a
 estante passa a mostrar «token recusado — religue».
 
@@ -135,6 +138,7 @@ navegador direto para `api.github.com`.
 Dentro do repositório:
 
 ```
+LEIA-ME.md                  o primeiro commit, se o repositório nasceu vazio
 livros/<impressão>.epub     o arquivo, como você o abriu
 estado/<impressão>.json     posição, fronteira, destaques
 indice.json                 título e autor de cada um, para a estante

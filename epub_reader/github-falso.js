@@ -71,6 +71,8 @@ window.__GH = (function () {
       return json({ sha });
     }
     if (u.includes('/git/ref/heads/main')) {
+      // repositório sem commit nenhum: é o que o GitHub responde
+      if (!cabeca) return json({ message: 'Git Repository is empty.' }, 409);
       return json({ object: { sha: cabeca } });
     }
     if ((m = u.match(/\/git\/commits\/([0-9a-f]+)$/)) && (opcoes.method || 'GET') === 'GET') {
@@ -89,6 +91,20 @@ window.__GH = (function () {
       commits.set(sha, { tree: corpo.tree, parents: corpo.parents });
       return json({ sha });
     }
+    /* A API de conteúdo, só o suficiente para o primeiro commit de um
+       repositório vazio — que é como o leitor cria o ramo padrão. */
+    if ((m = u.match(/\/contents\/(.+)$/)) && opcoes.method === 'PUT') {
+      const shaBlob = novoSha('b');
+      blobs.set(shaBlob, Uint8Array.from(atob(corpo.content), (c) => c.charCodeAt(0)));
+      const base = arvoreDe(cabeca);
+      base.set(decodeURIComponent(m[1]), shaBlob);
+      const t = novoSha('t');
+      arvores.set(t, base);
+      const c = novoSha('c');
+      commits.set(c, { tree: t, parents: cabeca ? [cabeca] : [] });
+      cabeca = c;
+      return json({ content: { path: m[1] }, commit: { sha: c } }, 201);
+    }
     if (u.includes('/git/refs/heads/main') && opcoes.method === 'PATCH') {
       const c = commits.get(corpo.sha);
       if (!corpo.force && c.parents[0] !== cabeca) {
@@ -103,6 +119,9 @@ window.__GH = (function () {
   return {
     chamadas,
     arquivos: () => [...arvoreDe(cabeca).keys()].sort(),
+    /* Um repositório recém-criado sem «Add a README»: existe, e não tem commit. */
+    esvaziar: () => { cabeca = null; },
+    temCabeca: () => !!cabeca,
     ler: (caminho) => {
       const sha = arvoreDe(cabeca).get(caminho);
       return sha ? new TextDecoder().decode(blobs.get(sha)) : null;
