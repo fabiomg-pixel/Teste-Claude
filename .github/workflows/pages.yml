@@ -1,0 +1,73 @@
+name: Página do leitor
+
+# Publica o leitor num endereço fixo do GitHub Pages. É o que o artifact nunca
+# vai poder ser: uma origem https comum, onde o IndexedDB guarda a estante, o
+# «Adicionar à Tela de Início» funciona, e a sincronização com um servidor é
+# possível — a política de segurança do artifact bloqueia qualquer uma dessas.
+#
+# O deploy vai para a branch gh-pages em vez de usar o ambiente github-pages:
+# aquele restringe deploys à branch padrão do repositório, que aqui é outro
+# projeto. Assim isto funciona de qualquer branch.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/epub-reader-llm-integration-h7tvtn]
+    paths:
+      - 'epub_reader/leitor-celular.html'
+      - 'epub_reader/moldura-celular.html'
+      - 'epub_reader/pagina.py'
+      - '.github/workflows/pages.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    name: Montar e publicar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Montar a página
+        run: |
+          set -e
+          mkdir -p site
+          python epub_reader/pagina.py site/index.html
+          # Sem isto o Pages passa o conteúdo pelo Jekyll, que come arquivos
+          # começados por underscore e pode mexer no que não deve.
+          touch site/.nojekyll
+          cp epub_reader/leitor-celular.html site/leitor-fragmento.html
+
+      - name: Conferir o que vai ao ar
+        run: |
+          set -e
+          test -s site/index.html
+          head -c 15 site/index.html | grep -qi '<!doctype html>'
+          grep -q 'width=device-width' site/index.html
+          grep -q 'apple-mobile-web-app-capable' site/index.html
+          grep -q '__leitorFalhou' site/index.html
+          grep -oE 'const VERSAO = [0-9]+' site/index.html
+          echo "tamanho: $(wc -c < site/index.html) bytes"
+
+      - name: Publicar na branch gh-pages
+        run: |
+          set -e
+          cd site
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Leitor publicado de ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" \
+            HEAD:gh-pages
+          echo "Publicado. Falta só apontar o Pages para a branch gh-pages."
