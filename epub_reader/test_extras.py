@@ -168,8 +168,10 @@ with sync_playwright() as p:
     tamanho = len(json.dumps(ped["corpo"]))
     print("   modelo:", ped["corpo"]["model"], "| tamanho do pedido:", tamanho, "bytes")
     print("   cartão:", pg.locator("#sentido-texto").text_content()[:56])
-    if ped["corpo"]["model"] != "claude-haiku-4-5":
+    if ped["corpo"]["model"] != "claude-haiku-5-5":
         falhas.append(f"o sentido não usou o modelo barato: {ped['corpo']['model']}")
+    if ped["corpo"].get("fallbacks"):
+        falhas.append("o sentido pediu reserva do servidor, que o Haiku 5.5 não tem")
     if tamanho > 2000:
         falhas.append(f"o sentido mandou contexto demais: {tamanho} bytes")
     if pg.locator("#cartao-sentido.oculto").count():

@@ -123,12 +123,21 @@ with sync_playwright() as p:
     if novos != 2:
         falhas.append(f"deveria resumir os 2 capítulos novos; fez {novos} chamadas")
 
-    print("5. o resumo usa um modelo mais barato, de propósito")
-    modelos = pg.evaluate("""() => [...new Set(window.__API.pedidos
-        .filter(p => !p.corpo.stream).map(p => p.corpo.model))]""")
-    print("   modelo dos resumos:", modelos)
-    if modelos != ["claude-sonnet-5"]:
-        falhas.append(f"os resumos não usaram o modelo barato: {modelos}")
+    print("5. o resumo usa um modelo mais barato, e um teto que o raciocínio não esgota")
+    pedidos = pg.evaluate("""() => window.__API.pedidos.filter(p => !p.corpo.stream)
+        .map(p => ({modelo: p.corpo.model, teto: p.corpo.max_tokens,
+                    esforco: (p.corpo.output_config || {}).effort}))""")
+    modelos = sorted({x["modelo"] for x in pedidos})
+    print("   modelo dos resumos:", modelos, "| teto:", pedidos[0]["teto"],
+          "| esforço:", pedidos[0]["esforco"])
+    if modelos != ["claude-sonnet-5-5"]:
+        falhas.append(f"os resumos não usaram o Sonnet 5.5: {modelos}")
+    # O raciocínio conta no max_tokens mesmo sem voltar como texto. Com 600 —
+    # o valor antigo — um capítulo que fizesse o modelo pensar saía cortado.
+    if any(x["teto"] < 2000 for x in pedidos):
+        falhas.append(f"teto dos resumos baixo demais para um modelo que pensa: {pedidos[0]['teto']}")
+    if any(x["esforco"] != "low" for x in pedidos):
+        falhas.append("os resumos não fixaram esforço baixo")
 
     print("6. a conta aparece, e sem inventar precisão")
     custo = pg.evaluate("() => { api.desenharCusto(); return document.getElementById('estado-custo').textContent; }")

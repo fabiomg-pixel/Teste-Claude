@@ -2324,7 +2324,9 @@ setTimeout(function () {
      Barato de propósito: Haiku, resposta curta, um cartão em vez da folha de
      conversa. Interromper a leitura para abrir um painel só para saber o que
      «alqueire» significa é atrito maior do que a dúvida. */
-  const MODELO_SENTIDO = 'claude-haiku-4-5';
+  /* Haiku 5.5: um décimo do preço do Haiku 4.5 que estava aqui, e uma
+     acepção de palavra é a tarefa mais simples do leitor. */
+  const MODELO_SENTIDO = 'claude-haiku-5-5';
 
   const REGRAS_SENTIDO = [
     'Você explica palavras e expressões para quem está lendo um livro.',
@@ -2362,7 +2364,7 @@ setTimeout(function () {
   async function pedirSentido() {
     const termo = (app.selecionado || '').trim();
     if (!termo || !app.livro) return;
-    if (!motor || !motor.resumir) { aviso('Isto precisa da chave da API no navegador.'); return; }
+    if (!motor || !motor.umaVez) { aviso('Isto precisa da chave da API no navegador.'); return; }
     if (!motor.temChave()) { aviso('Cole uma chave da API em 💬 → 🔑.'); return; }
 
     const t = tetos();
@@ -2385,12 +2387,14 @@ setTimeout(function () {
     esconderSelecao();
 
     try {
-      const saida = await motor.resumir(REGRAS_SENTIDO,
-        'Trecho: «' + termo + '»\n\nFrase em que aparece: ' + frase,
-        MODELO_SENTIDO, 300);
+      const saida = await motor.umaVez({
+        sistema: REGRAS_SENTIDO,
+        conteudo: 'Trecho: «' + termo + '»\n\nFrase em que aparece: ' + frase,
+        modelo: MODELO_SENTIDO, teto: 1500, esforco: 'low', reserva: false,
+      });
       if (sentidoEmCurso !== meu) return;     // a pessoa já pediu outra coisa
       $('sentido-texto').textContent = saida.texto;
-      contabilizar(MODELO_SENTIDO, saida.uso);
+      contabilizar(saida.modelo, saida.uso);
     } catch (erro) {
       if (sentidoEmCurso !== meu) return;
       $('sentido-texto').textContent = erro.message || 'não consegui agora.';
@@ -2412,7 +2416,7 @@ setTimeout(function () {
        acepção de dois parágrafos não é uma pergunta de dicionário. */
     const curto = selecao.toString().trim().length <= 60;
     $('sel-sentido').classList.toggle('oculto',
-      !(motor && motor.resumir && motor.temChave() && curto));
+      !(motor && motor.umaVez && motor.temChave() && curto));
     barra.classList.add('visivel');
     const largura = barra.offsetWidth;
     let x = r.left + r.width / 2 - largura / 2;
@@ -2917,33 +2921,65 @@ setTimeout(function () {
     apagarChave() { this.mudar('chave', ''); },
     salvarModelo(m) { this.mudar('modelo', m); },
 
-    /* Uma chamada de ida e volta, sem streaming: é o que os resumos de capítulo
-       precisam. Diferente de `perguntar`, esta REJEITA — quem chama está num
-       laço de fundo e precisa saber que parou, para não tentar mil vezes. */
-    async resumir(sistema, mensagem, modelo, teto) {
+    /* Uma chamada de ida e volta, sem streaming: resumos de capítulo, o
+       sentido de uma palavra, e a leitura das páginas de uma edição. Diferente
+       de `perguntar`, esta REJEITA — quem chama está num laço de fundo ou numa
+       ação que a pessoa pediu, e precisa saber que parou.
+
+       o = { sistema, conteudo (texto ou vetor de blocos), modelo, teto,
+             esforco, reserva }
+
+       O teto inclui o raciocínio. Os modelos atuais pensam por padrão, e esse
+       pensamento conta no max_tokens mesmo sem voltar como texto: o teto de
+       600 que os resumos usavam podia ser todo gasto pensando, e o resumo saía
+       vazio ou cortado no meio. Por isso o padrão aqui é largo, o esforço é
+       explícito, e uma resposta cortada é tratada como falha — um resumo pela
+       metade envenenaria toda pergunta futura que o usasse.
+
+       `reserva` liga o fallback do servidor para recusa de classificador. Uma
+       matéria sobre tráfico ou um romance com veneno não é pedido perigoso, mas
+       o classificador não sabe disso. O Haiku 5.5 não tem reserva no servidor,
+       e quem chama com ele passa `reserva: false`. */
+    async umaVez(o) {
       const ficha = this.ficha;
-      const resposta = await fetch(API_ANTHROPIC, {
-        method: 'POST',
-        headers: {
+      let comReserva = !!o.reserva;
+      for (let volta = 0; volta < 2; volta++) {
+        const corpo = {
+          model: o.modelo,
+          max_tokens: o.teto || 4000,
+          system: o.sistema,
+          messages: [{ role: 'user', content: o.conteudo }],
+        };
+        if (o.esforco) corpo.output_config = { effort: o.esforco };
+        const cabecalhos = {
           'content-type': 'application/json',
           'x-api-key': ficha.chave,
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: modelo,
-          max_tokens: teto || 1200,
-          system: sistema,
-          messages: [{ role: 'user', content: mensagem }],
-        }),
-      });
-      if (!resposta.ok) throw new Error((await queixaDaAPI(resposta)).texto);
-      const corpo = await resposta.json();
-      if (corpo.stop_reason === 'refusal') throw new Error('o modelo recusou resumir este capítulo');
-      const texto = (corpo.content || [])
-        .filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-      if (!texto) throw new Error('o resumo voltou vazio');
-      return { texto, uso: corpo.usage || null };
+        };
+        if (comReserva) {
+          corpo.fallbacks = 'default';
+          cabecalhos['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+        }
+        const resposta = await fetch(API_ANTHROPIC,
+          { method: 'POST', headers: cabecalhos, body: JSON.stringify(corpo) });
+        // 400 com a reserva ligada: o parâmetro é o suspeito. Tenta sem ele uma vez.
+        if (resposta.status === 400 && comReserva) { comReserva = false; continue; }
+        if (!resposta.ok) throw new Error((await queixaDaAPI(resposta)).texto);
+
+        const r = await resposta.json();
+        if (r.stop_reason === 'refusal') throw new Error('o modelo recusou este pedido');
+        const texto = (r.content || [])
+          .filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+        if (r.stop_reason === 'max_tokens') {
+          throw new Error('a resposta passou do tamanho previsto e saiu cortada');
+        }
+        if (!texto) throw new Error('a resposta voltou vazia');
+        // quem serviu pode não ser quem foi pedido, se a reserva entrou
+        return { texto, uso: r.usage || null,
+                 modelo: PRECOS[r.model] ? r.model : o.modelo };
+      }
+      throw new Error('a API recusou o pedido');
     },
 
     /* Nunca rejeita: a conversa inteira reporta falha por __ponte.erro, e uma
@@ -3275,12 +3311,20 @@ setTimeout(function () {
      deixar a pessoa gastar no escuro. Os preços são por milhão de tokens e vão
      envelhecer; o rodapé diz de quando são, para ninguém tomar a conta por
      exata. Tudo fica no aparelho — é informação de quem paga. */
-  const PRECOS = {                          // US$ por milhão de tokens, 09/2026
+  const PRECOS = {                          // US$ por milhão de tokens, 10/2026
     'claude-opus-5-5': { entrada: 4, saida: 20, cacheLido: 0.20 },
     'claude-opus-5': { entrada: 5, saida: 25, cacheLido: 0.50 },
+    'claude-sonnet-5-5': { entrada: 2, saida: 10, cacheLido: 0.20 },
     'claude-sonnet-5': { entrada: 2, saida: 10, cacheLido: 0.20 },
+    'claude-haiku-5-5': { entrada: 0.10, saida: 0.50, cacheLido: 0.01 },
     'claude-haiku-4-5': { entrada: 1, saida: 5, cacheLido: 0.10 },
   };
+  /* A busca na web é cobrada por busca, por fora dos tokens: US$ 10 por mil. */
+  const PRECO_BUSCA = 0.01;
+
+  function buscasDe(uso) {
+    return (uso && uso.server_tool_use && uso.server_tool_use.web_search_requests) || 0;
+  }
 
   function mesCorrente() { return new Date().toISOString().slice(0, 7); }
 
@@ -3289,6 +3333,7 @@ setTimeout(function () {
     let livro = estado.ler('leitor.custo', { mes: '', modelos: {}, ultimo: 0 });
     if (livro.mes !== mesCorrente()) livro = { mes: mesCorrente(), modelos: {}, ultimo: 0 };
     const c = livro.modelos[modelo] || { entrada: 0, saida: 0, cacheLido: 0, cacheGravado: 0, pedidos: 0 };
+    c.buscas = (c.buscas || 0) + buscasDe(uso);
     c.entrada += uso.input_tokens || 0;
     c.saida += uso.output_tokens || 0;
     c.cacheLido += uso.cache_read_input_tokens || 0;
@@ -3306,7 +3351,8 @@ setTimeout(function () {
     return ((uso.input_tokens || 0) * p.entrada
           + (uso.output_tokens || 0) * p.saida
           + (uso.cache_read_input_tokens || 0) * p.cacheLido
-          + (uso.cache_creation_input_tokens || 0) * p.entrada * 1.25) / 1e6;
+          + (uso.cache_creation_input_tokens || 0) * p.entrada * 1.25) / 1e6
+          + buscasDe(uso) * PRECO_BUSCA;
   }
 
   function contaDoMes() {
@@ -3321,6 +3367,7 @@ setTimeout(function () {
       total += precoDe(m, {
         input_tokens: c.entrada, output_tokens: c.saida,
         cache_read_input_tokens: c.cacheLido, cache_creation_input_tokens: c.cacheGravado,
+        server_tool_use: { web_search_requests: c.buscas || 0 },
       });
       pedidos += c.pedidos || 0;
       entrada += (c.entrada || 0) + (c.cacheGravado || 0);
@@ -3446,8 +3493,9 @@ setTimeout(function () {
 
   /* Resumir é extração, não raciocínio: um modelo mais barato serve, e a conta
      de um romance de trinta capítulos fica em centavos. Sonnet e não Haiku
-     porque um resumo ruim envenena toda resposta futura que o use. */
-  const MODELO_RESUMO = 'claude-sonnet-5';
+     porque um resumo ruim envenena toda resposta futura que o use. Sonnet 5.5,
+     o atual da linha, ao mesmo preço do 5. */
+  const MODELO_RESUMO = 'claude-sonnet-5-5';
 
   const REGRAS_RESUMO = [
     'Resuma o capítulo abaixo para servir de memória de leitura.',
@@ -3492,7 +3540,7 @@ setTimeout(function () {
     /* Enfileira o que falta. Chamado quando a leitura cruza um capítulo e pelo
        botão de completar — o mesmo caminho nos dois casos. */
     enfileirar() {
-      if (!motor || !motor.resumir || !motor.temChave()) return;
+      if (!motor || !motor.umaVez || !motor.temChave()) return;
       /* O teto do mês vale para os resumos também, e aqui eles são automáticos:
          sem isto o limite seria furado por um laço de fundo que a pessoa não
          pediu. Só o teto do mês — o de «por pergunta» é sobre a conversa. */
@@ -3521,13 +3569,15 @@ setTimeout(function () {
             .filter((b) => b.i >= c.primeiro && b.i <= c.ultimo).map((b) => b.t).join('\n\n');
           if (!texto.trim()) { this.fila.shift(); continue; }
           try {
-            const saida = await motor.resumir(REGRAS_RESUMO,
-              'Título do capítulo: ' + (c.titulo || '(sem título)') + '\n\n' + texto,
-              MODELO_RESUMO, 600);
+            const saida = await motor.umaVez({
+              sistema: REGRAS_RESUMO,
+              conteudo: 'Título do capítulo: ' + (c.titulo || '(sem título)') + '\n\n' + texto,
+              modelo: MODELO_RESUMO, teto: 4000, esforco: 'low', reserva: true,
+            });
             app.resumos[c.indice] = { ate: c.ultimo, texto: saida.texto, em: Date.now() / 1000 };
             this.guardar();
             this.ultimoErro = '';
-            contabilizar(MODELO_RESUMO, saida.uso);
+            contabilizar(saida.modelo, saida.uso);
           } catch (erro) {
             /* Uma falha não pode virar um laço quente: sai da fila, a contagem
                na tela mostra que falta, e o botão de completar tenta de novo. */
@@ -3554,7 +3604,7 @@ setTimeout(function () {
       const todos = this.lidosPorInteiro().length;
       const prontos = todos - this.faltam().length;
       const botao = $('completar-memoria');
-      if (!motor || !motor.resumir) {
+      if (!motor || !motor.umaVez) {
         alvo.textContent = 'A memória por capítulo precisa da chave da API no navegador.';
         if (botao) botao.classList.add('oculto');
         return;
