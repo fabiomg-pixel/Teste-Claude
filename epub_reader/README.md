@@ -103,7 +103,7 @@ inteiro como reserva em todos os casos.
 
 O modelo padrão é o `claude-opus-5-5`: sucede o Opus 5 na mesma linha, com a
 mesma janela de contexto, e custa menos — US$ 4/20 por milhão de tokens contra
-5/25. Opus 5, Sonnet 5 e Haiku 4.5 ficam a um toque.
+5/25. Opus 5, Sonnet 5.5 e Haiku 5.5 ficam a um toque.
 
 Duas descidas automáticas, porque a pior falha é a conversa que morre sem
 explicação:
@@ -112,7 +112,9 @@ explicação:
   numa linha, e lembra.
 - **Parâmetro recusado** pelo modelo escolhido: o pedido completo pede raciocínio
   adaptativo com `effort: medium` e resumo do raciocínio visível; se algum modelo
-  não aceitar, o leitor desce para o pedido mínimo, responde, e lembra.
+  não aceitar, o leitor desce para o pedido mínimo, responde, e lembra — **por
+  modelo**: uma recusa do Haiku não tira o raciocínio do Opus. O Haiku vai sem
+  `fallbacks`, que ele não aceita.
 
 O esforço é fixado explicitamente porque o padrão muda entre modelos — `medium` no
 Opus 5.5, `high` no Opus 5 — e a conversa deve se comportar igual qualquer que
@@ -123,6 +125,43 @@ raciocínio corta a resposta no meio da frase.
 Recusa de classificador (uma trama com peste ou veneno não é pesquisa de
 biologia, mas o classificador não lê romances) vai com `fallbacks: "default"`: a
 API tenta noutro modelo em vez de a conversa parar.
+
+### Edições de revista e jornal (PDF)
+
+O mesmo botão **Abrir** aceita PDF. Uma edição não vira livro: abre numa tela
+de páginas em miniatura.
+
+1. **Escolha as páginas** de uma matéria (toque para marcar; a lupa 🔍 no canto
+   abre a página grande com zoom de 1× a 3×). Até 20 por vez. O custo
+   estimado aparece antes de qualquer gasto.
+2. **Ver as matérias**: o leitor recorta *só* as páginas escolhidas num PDF novo
+   (pdf-lib) e pede ao Sonnet 5.5 a lista das matérias que há nelas. Duas
+   páginas saem por uns US$ 0,05.
+3. **Transcrever**: a matéria escolhida vira texto em Markdown — título,
+   linha fina, intertítulos, boxes e legendas marcados. O pedido repete
+   byte a byte o sistema, o modelo, o esforço e o documento da listagem, então
+   o PDF sai do cache e custa um décimo.
+4. A matéria entra na estante (📄) como um texto curto, lido inteiro, sem
+   fronteira — conversa sobre ela é conversa sobre tudo.
+
+Na conversa de uma matéria os botões mudam: **Resumir**, **Contexto**,
+**Checar** e **Outras coberturas 🌐**. Este último liga a busca na web da API
+(até 4 buscas por pergunta, US$ 0,01 cada), compara como outros veículos
+contam a mesma coisa e devolve as fontes com link. O interruptor 🌐 liga a busca
+em qualquer pergunta. O conteúdo das páginas buscadas entra como dado, nunca
+como instrução, e só links `http(s)` viram clicáveis. Uma pergunta com busca é
+estimada em ~US$ 0,12 — acima do teto padrão de US$ 0,10 por pergunta, então o
+aviso de teto aparece; suba o teto para uns US$ 0,25 se for usar sempre.
+
+**Ver as páginas originais** reabre a edição com as páginas da matéria
+marcadas, para conferir uma transcrição duvidosa.
+
+Se o PDF for cifrado ou o recorte falhar, as páginas vão como imagens (1568 px
+no lado maior) — funciona, mas letra miúda sofre. A edição fica **só no
+aparelho** a não ser que você toque em **Guardar no repositório** (até 95 MB;
+o git guarda tudo para sempre, então é escolha explícita). As matérias
+transcritas sincronizam sempre, em `materias/`. No APK a busca na web, os
+resumos e o sentido não existem — eles dependem da chamada direta do navegador.
 
 ### A memória do livro
 
@@ -136,10 +175,12 @@ contexto sem passar pelo caminho do recorte, então seria a porta perfeita para 
 spoiler: o recorte continuaria impecável e a promessa já estaria quebrada.
 
 O gatilho é cruzar o capítulo, não perguntar — resumir na hora da pergunta
-deixaria a primeira pergunta lenta e caríssima. Usa o `claude-sonnet-5`, não o
+deixaria a primeira pergunta lenta e caríssima. Usa o `claude-sonnet-5-5` com esforço baixo, não o
 modelo da conversa: resumir é extração, e um romance de trinta capítulos sai por
 centavos. Sonnet e não Haiku porque um resumo ruim envenena toda resposta futura
-que o use. A mescla entre aparelhos é por capítulo, e o mais adiantado ganha.
+que o use. O teto é de 4 000 tokens e não 600: o raciocínio conta para ele, e um
+teto apertado devolvia resumo vazio. A mescla entre aparelhos é por capítulo, e o
+mais adiantado ganha.
 
 ### Trilogias: os volumes anteriores na conversa
 
@@ -204,7 +245,7 @@ livro, algo volátil entrou no prefixo.
 Selecione uma palavra ou expressão curta e toque em **Sentido**: um cartão diz o
 que ela significa *naquela frase* — a acepção que vale ali, não a lista de
 acepções. Manda a oração em volta, não o bloco: o contexto de uma palavra é a
-frase, e quatro parágrafos custam mais e ajudam menos. Usa Haiku 4.5, e o pedido
+frase, e quatro parágrafos custam mais e ajudam menos. Usa Haiku 5.5 — um décimo do preço do anterior — e o pedido
 inteiro fica abaixo de 1 KB.
 
 O cartão fecha ao virar a página ou abrir qualquer painel. Uma ajuda de meio
@@ -600,7 +641,7 @@ python3 -m unittest test_leitor test_sync test_porta -v
 mescla da sincronização, e a porta de entrada (senha, freio, o que fica
 aberto e o que não).
 
-E oito testes de navegador, todos precisando do Playwright:
+E nove testes de navegador, todos precisando do Playwright:
 
 | Teste | O que ele pega |
 |---|---|
@@ -612,6 +653,7 @@ E oito testes de navegador, todos precisando do Playwright:
 | `test_memoria.py` | os resumos por capítulo, e o que a memória não pode deixar entrar |
 | `test_serie.py` | trilogias — três fronteiras ao mesmo tempo, uma por volume |
 | `test_extras.py` | o prefixo do cache byte a byte, o histórico, a lápide, o sentido, os destaques e a exportação |
+| `test_imprensa.py` | a edição em PDF: o recorte só com as páginas escolhidas, o cache entre listar e transcrever, a busca na web com `pause_turn` e links maliciosos, e o caminho por imagens |
 
 O `test_github.py` monta um GitHub de mentira do tamanho exato do que o leitor
 usa — e que **recusa** o `PATCH` da referência quando o ramo andou. É essa
@@ -649,6 +691,7 @@ python3 test_conversa.py
 python3 test_memoria.py
 python3 test_serie.py
 python3 test_extras.py
+python3 test_imprensa.py
 ```
 
 Tudo isso roda a cada empurrão, em
@@ -703,6 +746,8 @@ epub_reader/
 ├── test_memoria.py   # os resumos por capítulo
 ├── test_serie.py     # trilogias, uma fronteira por volume
 ├── test_extras.py    # cache, histórico, sentido, destaques, exportação
+├── edicao_de_teste.py # gera um jornal de 4 páginas em PDF, sem dependências
+├── test_imprensa.py  # edições em PDF, transcrição e busca na web
 ├── livro_de_capa.py  # gera um EPUB que começa pela capa, como os de editora
 ├── instalar-no-mac.sh    # LaunchAgent: o servidor sobe no login e se mantém
 ├── Dockerfile, fly.toml  # o mesmo leitor, na nuvem

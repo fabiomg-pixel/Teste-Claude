@@ -77,6 +77,12 @@ jobs:
         working-directory: epub_reader
         run: python3 test_extras.py
 
+      # O teste instala as bibliotecas de PDF sozinho, nas versões que o leitor
+      # declara, e serve tudo por HTTP como o GitHub Pages serve.
+      - name: Edições em PDF, do recorte à conversa com busca
+        working-directory: epub_reader
+        run: python3 test_imprensa.py
+
       - name: O servidor perdendo o disco inteiro
         working-directory: epub_reader
         run: python3 test_disco_efemero.py

@@ -49,6 +49,22 @@ jobs:
           touch site/.nojekyll
           cp epub_reader/leitor-celular.html site/leitor-fragmento.html
 
+      # As bibliotecas de PDF ao lado da página, para o leitor não depender de
+      # um CDN de terceiro que rede de universidade às vezes bloqueia. A versão
+      # vem do próprio leitor, e não de uma segunda lista aqui: duas listas de
+      # versões divergem sempre.
+      - name: Pôr as bibliotecas de PDF em vendor/
+        run: |
+          set -e
+          PDFJS=$(grep -oE "VERSAO_PDFJS = '[0-9.]+'" epub_reader/leitor-celular.html | grep -oE "[0-9.]+")
+          PDFLIB=$(grep -oE "VERSAO_PDFLIB = '[0-9.]+'" epub_reader/leitor-celular.html | grep -oE "[0-9.]+")
+          echo "pdf.js $PDFJS · pdf-lib $PDFLIB"
+          npm install --prefix /tmp/libs --no-audit --no-fund "pdfjs-dist@$PDFJS" "pdf-lib@$PDFLIB"
+          mkdir -p site/vendor/pdfjs
+          cp /tmp/libs/node_modules/pdfjs-dist/build/pdf.min.js site/vendor/pdfjs/
+          cp /tmp/libs/node_modules/pdfjs-dist/build/pdf.worker.min.js site/vendor/pdfjs/
+          cp /tmp/libs/node_modules/pdf-lib/dist/pdf-lib.min.js site/vendor/
+
       - name: Conferir o que vai ao ar
         run: |
           set -e
@@ -58,6 +74,9 @@ jobs:
           grep -q 'apple-mobile-web-app-capable' site/index.html
           grep -q '__leitorFalhou' site/index.html
           grep -oE 'const VERSAO = [0-9]+' site/index.html
+          test -s site/vendor/pdfjs/pdf.min.js
+          test -s site/vendor/pdfjs/pdf.worker.min.js
+          test -s site/vendor/pdf-lib.min.js
           echo "tamanho: $(wc -c < site/index.html) bytes"
 
       - name: Publicar na branch gh-pages

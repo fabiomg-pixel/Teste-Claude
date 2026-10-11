@@ -290,6 +290,43 @@ with sync_playwright() as p:
     if pg2.input_value("#campo-repo") != "fabio/biblioteca":
         falhas.append("o painel não mostra o repositório já ligado")
 
+    # Matéria vai sempre; edição só se pedida. Um PDF de revista no git fica lá
+    # para sempre, mesmo apagado depois — o repositório incharia sem volta.
+    pg2.evaluate("""async () => {
+      await api.importarMateriaDeTexto('# Título da matéria\\n\\nCorpo da matéria.\\n',
+        {titulo: 'Título da matéria', autor: 'Revista X',
+         origem: {edicao: 'ee00', edicaoId: 'eee00', paginas: [2]}});
+      await api.guarda.guardar({id: 'eee00', tipo: 'edicao', impressao: 'ee00',
+        titulo: 'Revista X', paginas: 1, tamanho: 5,
+        bytes: new Uint8Array([37, 80, 68, 70, 45]).buffer});
+      await api.sincronizarTudo(true);
+    }""")
+    arquivos = pg2.evaluate("() => window.__GH.arquivos()")
+    materias_ = [a for a in arquivos if a.startswith("materias/")]
+    print("   matéria no repositório:", materias_, "| edição sem pedir:",
+          [a for a in arquivos if a.startswith("edicoes/")])
+    if len(materias_) != 1:
+        falhas.append(f"a matéria não foi para o repositório: {arquivos}")
+    if any(a.startswith("edicoes/") for a in arquivos):
+        falhas.append("a edição subiu sem ninguém pedir")
+    pg2.evaluate("""async () => {
+      const r = await api.guarda.pegar('eee00');
+      r.noRepositorio = true;
+      await api.guarda.guardar(r);
+      await api.sincronizarTudo(true);
+    }""")
+    arquivos = pg2.evaluate("() => window.__GH.arquivos()")
+    print("   depois de pedir:", [a for a in arquivos if a.startswith("edicoes/")],
+          "| estado da edição:", "estado/ee00.json" in arquivos)
+    if "edicoes/ee00.pdf" not in arquivos:
+        falhas.append("pedir para guardar a edição não a mandou ao repositório")
+    if "estado/ee00.json" in arquivos:
+        falhas.append("a edição ganhou arquivo de estado, que ela não tem")
+    tipos = pg2.evaluate("async () => (await api.biblioteca.listar()).livros.map(l => l.tipo).sort()")
+    print("   tipos lidos de volta:", tipos)
+    if tipos.count("materia") != 1 or tipos.count("edicao") != 1:
+        falhas.append(f"o repositório não devolveu os tipos certos: {tipos}")
+
     # token que expirou depois de ligado: a sincronia de fundo não pode calar
     pg2.evaluate("""() => {
       const c = api.github.config;

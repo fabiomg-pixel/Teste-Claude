@@ -211,7 +211,24 @@ with sync_playwright() as p:
     perguntar(pg, "E depois?")
     if pg.evaluate("() => window.__API.pedidos.map(p => !!p.corpo.thinking)") != [False]:
         falhas.append("não lembrou que este modelo recusa o pedido completo")
-    pg.evaluate("() => api.motorNavegador.mudar('pedido', 'completo')")
+    pg.evaluate("() => api.motorNavegador.mudar('simplesPara', {})")
+
+    print("7b. a lembrança do pedido simples é por modelo, e o Haiku vai sem reserva")
+    pg.evaluate("""() => { window.__API.limpar(); window.__API.roteiro('semPensar');
+      api.motorNavegador.salvarModelo('claude-haiku-5-5'); }""")
+    perguntar(pg, "uma pergunta no Haiku")
+    haiku = pg.evaluate("() => window.__API.pedidos.map(p => !!p.corpo.fallbacks)")
+    pg.evaluate("""() => { window.__API.limpar(); window.__API.roteiro('normal');
+      api.motorNavegador.salvarModelo(''); }""")
+    perguntar(pg, "e de volta ao Opus")
+    opus = pg.evaluate("() => window.__API.ultimo().corpo")
+    print("   reserva nos pedidos do Haiku:", haiku, "| Opus depois, com raciocínio:",
+          bool(opus.get("thinking")), opus["model"])
+    if any(haiku):
+        falhas.append("o Haiku foi com reserva de servidor, que ele não aceita")
+    if not opus.get("thinking"):
+        falhas.append("um 400 no Haiku tirou o raciocínio do Opus — a lembrança vazou entre modelos")
+    pg.evaluate("() => api.motorNavegador.mudar('simplesPara', {})")
 
     print("8. cada falha diz o que fazer")
     casos = [
@@ -229,7 +246,7 @@ with sync_playwright() as p:
         if espero not in dito:
             falhas.append(f"{porque}: disse «{dito[:70]}»")
         if roteiro == "semCredito":
-            pg.evaluate("() => api.motorNavegador.mudar('pedido', 'completo')")
+            pg.evaluate("() => api.motorNavegador.mudar('simplesPara', {})")
 
     print("8b. o portão da crítica muda o acordo, e só ele")
     pg.evaluate("() => { window.__API.roteiro('normal'); window.__API.limpar(); }")
