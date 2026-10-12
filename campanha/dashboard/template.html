@@ -1,0 +1,649 @@
+<title>O Oitavo Canto</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: painel de campanha. Faixa superior com local/relógio, abas, conteúdo em cartões sóbrios; o mapa é o protagonista. */
+:root {
+  --bg: #efe6d3;          /* pergaminho */
+  --bg-2: #e4d8bf;        /* pergaminho sombreado */
+  --card: #f7f1e3;
+  --fg: #2b2117;
+  --fg-2: #6b5a46;
+  --line: #cbb996;
+  --accent: #b5651d;      /* âmbar de vela */
+  --accent-2: #8a3b12;
+  --glow: #f2c45a;
+  --crystal: #7fa7b8;     /* cristal pálido */
+  --ok: #4f7a3a;
+  --warn: #b8862b;
+  --bad: #9c2f2f;
+  --water: #9bb7c4;
+  --forest: #6f8a5a;
+  --hill: #c9a97c;
+  --swamp: #8c9a6a;
+  --font-display: "Cormorant Garamond", "Georgia", serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15120f; --bg-2: #1d1814; --card: #221c17; --fg: #ebe1cf; --fg-2: #a89782; --line: #3a3027;
+    --accent: #e0953f; --accent-2: #f0b865; --glow: #ffd27a; --crystal: #9cc7da;
+    --ok: #7fb569; --warn: #d9a84a; --bad: #d9625e; --water: #3f5d6c; --forest: #3f5a38; --hill: #5b4a35; --swamp: #4a5a3a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15120f; --bg-2: #1d1814; --card: #221c17; --fg: #ebe1cf; --fg-2: #a89782; --line: #3a3027;
+  --accent: #e0953f; --accent-2: #f0b865; --glow: #ffd27a; --crystal: #9cc7da;
+  --ok: #7fb569; --warn: #d9a84a; --bad: #d9625e; --water: #3f5d6c; --forest: #3f5a38; --hill: #5b4a35; --swamp: #4a5a3a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 0 48px; padding-inline: 16px; }
+h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; line-height: 1.15; }
+h1 { font-size: clamp(30px, 5vw, 44px); letter-spacing: .01em; }
+h2 { font-size: 24px; }
+h3 { font-size: 19px; }
+p { margin: 0; }
+a { color: var(--accent); }
+.eyebrow { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--fg-2); }
+
+/* Faixa superior */
+.topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; padding-block: 28px 16px; border-bottom: 1px solid var(--line); }
+.topo .sub { color: var(--fg-2); font-style: italic; font-family: var(--font-display); font-size: 18px; }
+.status { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+.status .item { min-width: 0; }
+.status .val { font-family: var(--font-display); font-size: 22px; font-weight: 600; line-height: 1.1; }
+.status .val.small { font-size: 18px; }
+.relogio { display: inline-flex; align-items: baseline; gap: 6px; }
+.relogio .n { font-size: 34px; color: var(--accent); }
+
+/* Abas */
+.abas { display: flex; gap: 4px; overflow-x: auto; padding-block: 12px; scrollbar-width: thin; }
+.aba { flex: 0 0 auto; border: 1px solid transparent; background: transparent; color: var(--fg-2); font: 600 13px var(--font-body); letter-spacing: .04em; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.aba:hover { color: var(--fg); }
+.aba[aria-selected="true"] { background: var(--card); border-color: var(--line); color: var(--fg); }
+.aba:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.painel[hidden] { display: none; }
+.painel { padding-block: 12px; display: grid; gap: 20px; }
+
+/* Cartões */
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; min-width: 0; }
+.card.quiet { background: transparent; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.pill { display: inline-block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--fg-2); }
+.pill.exploracao { color: var(--ok); border-color: var(--ok); }
+.pill.combate { color: var(--bad); border-color: var(--bad); }
+.pill.social { color: var(--accent); border-color: var(--accent); }
+.pill.descanso, .pill.viagem { color: var(--crystal); border-color: var(--crystal); }
+.pill.aliado { color: var(--ok); border-color: var(--ok); }
+.pill.amigavel { color: var(--ok); }
+.pill.hostil { color: var(--bad); border-color: var(--bad); }
+.pill.desconfiado { color: var(--warn); border-color: var(--warn); }
+.pill.ativa { color: var(--accent); border-color: var(--accent); }
+.pill.concluida { color: var(--ok); border-color: var(--ok); }
+.pill.falhou { color: var(--bad); border-color: var(--bad); }
+
+/* Cena */
+.cena { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.cena .texto { font-family: var(--font-display); font-size: 19px; line-height: 1.45; max-width: 68ch; }
+.cena img { max-width: 100%; border-radius: 6px; border: 1px solid var(--line); }
+
+/* Ficha */
+.ficha-topo { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; align-items: flex-end; }
+.barra { height: 12px; background: var(--bg-2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+.barra > span { display: block; height: 100%; background: var(--ok); transition: width .4s ease; }
+.barra.ferido > span { background: var(--warn); }
+.barra.grave > span { background: var(--bad); }
+.atributos { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+@media (max-width: 560px) { .atributos { grid-template-columns: repeat(3, 1fr); } }
+.atr { text-align: center; border: 1px solid var(--line); border-radius: 6px; padding: 8px 4px; background: var(--bg); }
+.atr .mod { font-family: var(--font-display); font-size: 24px; font-weight: 700; line-height: 1; }
+.atr .base { font-size: 12px; color: var(--fg-2); }
+.atr .nome { font-size: 10px; letter-spacing: .12em; color: var(--fg-2); font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.stat { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--bg); }
+.stat .v { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1; }
+.stat .k { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--fg-2); font-weight: 600; }
+.lista { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.lista.plain { list-style: none; padding: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 3px 9px; border-radius: 4px; background: var(--bg-2); border: 1px solid var(--line); }
+.pips { display: inline-flex; gap: 4px; vertical-align: middle; }
+.pip { width: 12px; height: 12px; border-radius: 50%; border: 1px solid var(--accent); background: var(--accent); }
+.pip.usado { background: transparent; }
+.marcas { display: inline-flex; gap: 6px; align-items: center; }
+.marca { width: 14px; height: 18px; clip-path: polygon(50% 0, 100% 35%, 80% 100%, 20% 100%, 0 35%); background: var(--bg-2); border: 1px solid var(--line); }
+.marca.ativa { background: var(--crystal); box-shadow: 0 0 8px var(--crystal); }
+.secao { display: grid; gap: 8px; }
+.secao h4 { font-size: 16px; color: var(--fg-2); font-weight: 600; letter-spacing: .02em; }
+
+/* Candidatos */
+.cand { display: grid; gap: 10px; border-top: 3px solid var(--accent); }
+.cand .nome { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+.cand .ep { color: var(--accent); font-style: italic; font-family: var(--font-display); font-size: 17px; }
+.cand .mini { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--fg-2); }
+
+/* Mapa */
+.mapa-wrap { position: relative; }
+.mapa { width: 100%; height: auto; display: block; border-radius: 8px; border: 1px solid var(--line); background: var(--bg-2); }
+.mapa text { font-family: var(--font-body); fill: var(--fg); }
+.mapa .rotulo { font-size: 13px; font-weight: 600; paint-order: stroke; stroke: var(--bg-2); stroke-width: 3px; stroke-linejoin: round; }
+.mapa .rotulo.terreno { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 15px; fill: var(--fg-2); stroke: none; letter-spacing: .06em; }
+.mapa .marco { fill: var(--fg-2); }
+.mapa .lugar { cursor: pointer; }
+.mapa .lugar .fundo { fill: var(--card); stroke: var(--fg-2); stroke-width: 1.5; }
+.mapa .lugar.conhecido .fundo { stroke-dasharray: 3 2; fill: var(--bg-2); }
+.mapa .lugar.conhecido .rotulo { fill: var(--fg-2); }
+.mapa .lugar.atual .fundo { stroke: var(--accent); stroke-width: 2.5; fill: var(--card); }
+.mapa .lugar .icone { font-size: 13px; text-anchor: middle; dominant-baseline: central; fill: var(--fg); }
+.mapa .lugar.conhecido .icone { fill: var(--fg-2); }
+.mapa .pulso { fill: none; stroke: var(--accent); stroke-width: 2; opacity: .8; transform-origin: center; transform-box: fill-box; animation: pulso 2.2s ease-out infinite; }
+@keyframes pulso { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(2.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .mapa .pulso { animation: none; opacity: .5; } .barra > span { transition: none; } }
+.legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--fg-2); align-items: center; }
+.legenda .sw { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--fg-2); vertical-align: -2px; margin-right: 5px; background: var(--card); }
+.legenda .sw.conhecido { border-style: dashed; background: var(--bg-2); }
+.legenda .sw.atual { border-color: var(--accent); border-width: 2.5px; }
+.info-lugar { min-height: 56px; }
+
+/* Combate */
+.ordem { display: grid; gap: 8px; }
+.comb { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; background: var(--bg); }
+.comb.ativo { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.comb .ini { font-family: var(--font-display); font-size: 22px; font-weight: 700; text-align: center; }
+.comb.inimigo .ini { color: var(--bad); }
+.comb.pc .ini { color: var(--ok); }
+.comb.aliado .ini { color: var(--crystal); }
+.grade { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); }
+.grade text { font-family: var(--font-body); font-weight: 600; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+
+/* Missões / jornal / npcs */
+.missao { display: grid; gap: 8px; }
+.obj { display: flex; gap: 10px; align-items: flex-start; }
+.obj .box { flex: 0 0 auto; width: 16px; height: 16px; border: 1.5px solid var(--fg-2); border-radius: 3px; margin-top: 3px; position: relative; }
+.obj.feito .box { background: var(--ok); border-color: var(--ok); }
+.obj.feito .box::after { content: ""; position: absolute; left: 4px; top: 1px; width: 5px; height: 9px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.obj.feito span { color: var(--fg-2); text-decoration: line-through; }
+.jornal { display: grid; gap: 0; }
+.entrada { display: grid; grid-template-columns: 130px 1fr; gap: 16px; padding-block: 14px; border-bottom: 1px solid var(--line); }
+.entrada:last-child { border-bottom: 0; }
+.entrada .data { font-family: var(--font-display); font-size: 16px; color: var(--accent); font-weight: 600; }
+.entrada .txt { max-width: 68ch; }
+@media (max-width: 560px) { .entrada { grid-template-columns: 1fr; gap: 4px; } }
+.npc { display: grid; gap: 6px; }
+.npc .nome { font-family: var(--font-display); font-size: 20px; font-weight: 700; }
+.rol { display: grid; grid-template-columns: 1fr auto; gap: 12px; padding-block: 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.rol:last-child { border-bottom: 0; }
+.rol .tot { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.vazio { color: var(--fg-2); font-style: italic; font-family: var(--font-display); font-size: 17px; }
+.guia h3 { margin-top: 6px; }
+.guia table { border-collapse: collapse; width: 100%; font-size: 14px; }
+.guia th, .guia td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.guia .tabela { overflow-x: auto; }
+.rodape { color: var(--fg-2); font-size: 12px; padding-block: 24px 0; border-top: 1px solid var(--line); margin-top: 16px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+</style>
+
+<div class="wrap">
+  <header class="topo">
+    <div>
+      <div class="eyebrow" id="ato">Ato I</div>
+      <h1 id="titulo">O Oitavo Canto</h1>
+      <div class="sub" id="subtitulo">Uma campanha de D&amp;D 5e em Aldemar</div>
+    </div>
+    <div class="relogio" aria-label="Dias para o Festival">
+      <span class="n mono" id="dias">7</span>
+      <span class="muted" id="dias-rotulo">dias para a Noite das Peregrinas</span>
+    </div>
+  </header>
+
+  <section class="status" aria-label="Situação atual">
+    <div class="item"><div class="eyebrow">Onde</div><div class="val small" id="local">—</div><div class="muted" id="local-detalhe"></div></div>
+    <div class="item"><div class="eyebrow">Quando</div><div class="val small" id="data">—</div><div class="muted" id="periodo"></div></div>
+    <div class="item"><div class="eyebrow">Modo</div><div class="val small"><span class="pill" id="modo">exploração</span></div></div>
+    <div class="item"><div class="eyebrow">Sessão</div><div class="val small"><span id="sessao">1</span></div><div class="muted">atualizado em <span id="atualizado"></span></div></div>
+  </section>
+
+  <nav class="abas" role="tablist" aria-label="Seções do painel">
+    <button class="aba" role="tab" data-aba="cena" aria-selected="true">Cena</button>
+    <button class="aba" role="tab" data-aba="personagem">Personagem</button>
+    <button class="aba" role="tab" data-aba="mapa">Mapa</button>
+    <button class="aba" role="tab" data-aba="combate">Combate</button>
+    <button class="aba" role="tab" data-aba="missoes">Missões</button>
+    <button class="aba" role="tab" data-aba="jornal">Jornal</button>
+    <button class="aba" role="tab" data-aba="npcs">NPCs</button>
+    <button class="aba" role="tab" data-aba="guia">Guia</button>
+  </nav>
+
+  <section class="painel" id="painel-cena" role="tabpanel">
+    <div class="card cena">
+      <div><span class="eyebrow">Cena atual</span></div>
+      <h2 id="cena-titulo">—</h2>
+      <p class="texto" id="cena-resumo"></p>
+      <img id="cena-imagem" alt="" hidden>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="eyebrow">Companheiros</div><div id="companheiros-cena" style="margin-top:8px"></div></div>
+      <div class="card"><div class="eyebrow">Últimas rolagens</div><div id="rolagens-cena" style="margin-top:8px"></div></div>
+    </div>
+  </section>
+
+  <section class="painel" id="painel-personagem" role="tabpanel" hidden></section>
+
+  <section class="painel" id="painel-mapa" role="tabpanel" hidden>
+    <div class="card quiet" style="padding:0;border:0">
+      <div class="mapa-wrap">
+        <svg class="mapa" viewBox="0 0 900 640" role="img" aria-labelledby="mapa-titulo">
+          <title id="mapa-titulo">Mapa da Marca de Brumal</title>
+          <defs>
+            <pattern id="pat-floresta" width="22" height="22" patternUnits="userSpaceOnUse">
+              <circle cx="6" cy="8" r="4" fill="var(--forest)" opacity=".55"/>
+              <circle cx="16" cy="16" r="3.5" fill="var(--forest)" opacity=".45"/>
+            </pattern>
+            <pattern id="pat-pantano" width="20" height="12" patternUnits="userSpaceOnUse">
+              <path d="M0 6 h8 M12 10 h8 M10 2 h6" stroke="var(--swamp)" stroke-width="1.5" fill="none"/>
+            </pattern>
+            <pattern id="pat-colina" width="40" height="26" patternUnits="userSpaceOnUse">
+              <path d="M2 20 q10 -14 20 0 M22 24 q8 -10 16 0" stroke="var(--hill)" stroke-width="1.6" fill="none" opacity=".9"/>
+            </pattern>
+          </defs>
+          <rect width="900" height="640" fill="var(--bg-2)"/>
+          <!-- Floresta de Serrálvia -->
+          <path d="M20 60 C120 30 260 50 330 110 C380 160 400 230 360 300 C320 360 200 370 120 340 C40 310 10 200 20 60 Z" fill="url(#pat-floresta)" stroke="var(--forest)" stroke-opacity=".5" stroke-width="1.5"/>
+          <!-- Colinas de Cobre -->
+          <path d="M660 190 C720 160 820 170 880 220 C900 300 880 400 860 450 C800 470 720 450 660 400 C630 330 620 250 660 190 Z" fill="url(#pat-colina)" stroke="var(--hill)" stroke-opacity=".7" stroke-width="1.5"/>
+          <!-- Colinas do sul -->
+          <path d="M560 500 C610 470 690 480 720 530 C730 580 690 620 630 620 C580 610 540 560 560 500 Z" fill="url(#pat-colina)" stroke="var(--hill)" stroke-opacity=".7" stroke-width="1.5"/>
+          <!-- Espigão oeste -->
+          <path d="M60 380 C90 360 150 370 170 410 C180 470 150 540 100 560 C60 540 40 440 60 380 Z" fill="url(#pat-colina)" stroke="var(--hill)" stroke-opacity=".7" stroke-width="1.5"/>
+          <!-- Pântano de Lamúria -->
+          <path d="M720 470 C780 450 860 470 880 520 C890 580 840 620 780 615 C730 600 700 520 720 470 Z" fill="url(#pat-pantano)" stroke="var(--swamp)" stroke-width="1.5"/>
+          <!-- Rio Sussurro -->
+          <path d="M840 40 C790 90 740 120 700 150 C660 180 620 210 590 240 C560 270 530 310 505 345" fill="none" stroke="var(--water)" stroke-width="7" stroke-linecap="round"/>
+          <path d="M470 500 C465 540 470 580 465 640" fill="none" stroke="var(--water)" stroke-width="6" stroke-linecap="round"/>
+          <!-- Lago das Velas -->
+          <ellipse cx="480" cy="440" rx="96" ry="62" fill="var(--water)"/>
+          <ellipse cx="470" cy="432" rx="14" ry="9" fill="var(--hill)" stroke="var(--fg-2)" stroke-width="1"/>
+          <!-- Estrada Real -->
+          <path d="M505 348 C540 300 580 260 600 236 C640 190 680 140 740 40" fill="none" stroke="var(--fg-2)" stroke-width="1.8" stroke-dasharray="7 4" opacity=".7"/>
+          <!-- Trilhas -->
+          <path d="M505 352 C580 345 650 340 718 332 M718 332 C750 310 775 295 800 278 M500 352 C450 330 400 310 338 300 M520 360 C580 400 620 470 640 530 M500 350 C505 260 510 170 520 92" fill="none" stroke="var(--fg-2)" stroke-width="1.2" stroke-dasharray="3 4" opacity=".6"/>
+          <!-- Caminho das Peregrinas -->
+          <path id="caminho" d="M410 0 C400 80 370 150 330 220 C300 280 380 330 500 352 C560 380 540 470 560 560 C570 600 575 620 580 640" fill="none" stroke="var(--glow)" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round" opacity=".95"/>
+          <!-- Marcos do Veio -->
+          <g class="marco">
+            <rect x="394" y="66" width="5" height="12" rx="1"/><rect x="340" y="196" width="5" height="12" rx="1"/>
+            <rect x="416" y="326" width="5" height="12" rx="1"/><rect x="548" y="512" width="5" height="12" rx="1"/>
+            <rect x="120" y="402" width="5" height="12" rx="1"/>
+          </g>
+          <!-- Rótulos de terreno -->
+          <text class="rotulo terreno" x="110" y="150">Floresta de Serrálvia</text>
+          <text class="rotulo terreno" x="700" y="235">Colinas de Cobre</text>
+          <text class="rotulo terreno" x="400" y="472">Lago das Velas</text>
+          <text class="rotulo terreno" x="735" y="590">Pântano de Lamúria</text>
+          <text class="rotulo terreno" x="690" y="98" transform="rotate(-45 690 98)">Rio Sussurro</text>
+          <text class="rotulo terreno" x="300" y="620">Caminho das Peregrinas</text>
+          <text class="rotulo terreno" x="672" y="60">Estrada Real → Alvaréns</text>
+          <!-- Bússola e escala -->
+          <g transform="translate(850 590)"><path d="M0 -22 L6 0 L0 -6 L-6 0 Z" fill="var(--fg)"/><path d="M0 22 L6 0 L0 6 L-6 0 Z" fill="var(--fg-2)" opacity=".5"/><text x="0" y="-28" text-anchor="middle" font-size="12" font-weight="600">N</text></g>
+          <g transform="translate(30 610)"><line x1="0" y1="0" x2="60" y2="0" stroke="var(--fg)" stroke-width="2"/><line x1="0" y1="-4" x2="0" y2="4" stroke="var(--fg)" stroke-width="2"/><line x1="60" y1="-4" x2="60" y2="4" stroke="var(--fg)" stroke-width="2"/><text x="30" y="-6" text-anchor="middle" font-size="11">1 légua</text></g>
+          <g id="lugares"></g>
+        </svg>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card info-lugar" id="info-lugar"><span class="vazio">Toque um lugar no mapa para ver o que se sabe sobre ele.</span></div>
+      <div class="card">
+        <div class="legenda">
+          <span><span class="sw atual"></span>onde você está</span>
+          <span><span class="sw"></span>visitado</span>
+          <span><span class="sw conhecido"></span>só ouviu falar</span>
+          <span><svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--glow)" stroke-width="2.5" stroke-dasharray="2 5"/></svg> rota das mariposas</span>
+          <span><svg width="8" height="14" aria-hidden="true"><rect x="1" y="1" width="5" height="12" rx="1" fill="var(--fg-2)"/></svg> Marco do Veio</span>
+        </div>
+        <p class="muted" style="margin-top:10px;font-size:13px">Lugares de que você ainda não ouviu falar não aparecem. O mapa cresce com a campanha.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="painel" id="painel-combate" role="tabpanel" hidden></section>
+  <section class="painel" id="painel-missoes" role="tabpanel" hidden></section>
+  <section class="painel" id="painel-jornal" role="tabpanel" hidden></section>
+  <section class="painel" id="painel-npcs" role="tabpanel" hidden></section>
+
+  <section class="painel guia" id="painel-guia" role="tabpanel" hidden>
+    <div class="card">
+      <h2>Como se joga</h2>
+      <p style="margin-top:8px;max-width:68ch">D&amp;D 5ª edição em português, por texto, com um jogador. A Claude é a Mestra: narra, interpreta os NPCs, rola os dados com uma ferramenta de aleatoriedade real e mantém este painel. Você diz o que seu personagem faz, em texto livre. Perguntas sobre a cena não gastam turno.</p>
+      <h3>Um turno</h3>
+      <ol class="lista">
+        <li>A Mestra descreve a cena e sugere de duas a quatro ações. Você não está limitado a elas.</li>
+        <li>Você declara o que faz. Pode falar como o personagem, entre aspas.</li>
+        <li>Se há risco e consequência, a Mestra pede um teste e mostra a rolagem.</li>
+        <li>A Mestra narra o resultado. Falhas custam algo; nunca travam a história.</li>
+      </ol>
+      <h3>Dificuldades</h3>
+      <div class="tabela"><table><tr><th>Fácil</th><th>Moderada</th><th>Difícil</th><th>Muito difícil</th><th>Heroica</th></tr><tr><td>CD 10</td><td>CD 13</td><td>CD 15</td><td>CD 18</td><td>CD 20</td></tr></table></div>
+      <p class="muted" style="margin-top:6px;font-size:13px">Cada prova concreta apresentada a um NPC reduz em 2 a CD de convencê-lo.</p>
+      <h3>Combate</h3>
+      <ul class="lista">
+        <li>Ação, ação bônus, movimento e uma reação por rodada. Ações: atacar, conjurar, esquivar, desengajar, disparar, ajudar, esconder, preparar, procurar, usar objeto.</li>
+        <li>Vida dos inimigos é descrita em palavras: ileso, ferido, machucado, quase caindo.</li>
+        <li>A 0 PV: testes de resistência contra a morte. A <strong>Sorte do Andarilho</strong> (1 por ato) evita a morte uma vez.</li>
+        <li><strong>Inspiração</strong>: ganha-se por boa interpretação; gasta-se para ter vantagem.</li>
+      </ul>
+      <h3>Marcas de Ressonância</h3>
+      <p style="max-width:68ch">Exposição ao Canto deixa marcas, de 0 a 5. Em 1 você ouve um cantarolar ao dormir. Em 3, a pele esfria nas pontas dos dedos e você reconhece outros marcados. Em 5 o personagem se perde. <em>Restauração Menor</em> tira 1 marca enquanto houver 2 ou menos. Há outros caminhos, com outros preços.</p>
+      <h3>A qualquer momento</h3>
+      <ul class="lista">
+        <li>Peça um resumo, a ficha, a recapitulação da sessão anterior.</li>
+        <li>Diga <strong>pausa</strong> para falar fora do personagem.</li>
+        <li>Peça para mudar o ritmo: mais combate, mais investigação, mais conversa.</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="rodape">
+    <span>O Oitavo Canto · Aldemar · regras baseadas em D&amp;D 5e (SRD 5.1, CC-BY-4.0)</span>
+    <span>estado da campanha: <span class="mono" id="rodape-atualizado"></span></span>
+  </footer>
+</div>
+
+<script id="estado-json" type="application/json">
+{}
+</script>
+<script>
+(function () {
+  'use strict';
+  var E;
+  try { E = JSON.parse(document.getElementById('estado-json').textContent); } catch (e) { E = {}; }
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, attrs, children) {
+    var el = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) {
+      if (k === 'class') el.className = attrs[k];
+      else if (k === 'text') el.textContent = attrs[k];
+      else if (k === 'html') el.innerHTML = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) { if (c) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return el;
+  }
+  function mod(v) { var m = Math.floor((v - 10) / 2); return (m >= 0 ? '+' : '') + m; }
+  function modoNome(m) { return ({ exploracao: 'exploração', combate: 'combate', social: 'conversa', descanso: 'descanso', viagem: 'viagem' })[m] || m || '—'; }
+  function atitudeNome(a) { return ({ aliado: 'aliado', amigavel: 'amigável', neutro: 'neutro', desconfiado: 'desconfiado', hostil: 'hostil', desconhecido: 'ainda não conhecido' })[a] || a; }
+  function vazio(txt) { return h('p', { class: 'vazio', text: txt }); }
+
+  /* ---- Topo ---- */
+  var C = E.campanha || {}, T = E.tempo || {}, L = E.local || {}, S = E.cena || {};
+  $('titulo').textContent = C.titulo || 'O Oitavo Canto';
+  $('subtitulo').textContent = C.subtitulo || '';
+  $('ato').textContent = C.ato || '';
+  $('sessao').textContent = C.sessao || '—';
+  $('atualizado').textContent = C.atualizado_em || '—';
+  $('rodape-atualizado').textContent = C.atualizado_em || '—';
+  $('local').textContent = L.nome || '—';
+  $('local-detalhe').textContent = L.detalhe || '';
+  $('data').textContent = T.data || '—';
+  $('periodo').textContent = T.periodo || '';
+  var modoEl = $('modo'); modoEl.textContent = modoNome(S.modo); modoEl.className = 'pill ' + (S.modo || '');
+  if (typeof T.dias_para_festival === 'number') {
+    $('dias').textContent = T.dias_para_festival;
+    $('dias-rotulo').textContent = T.dias_para_festival === 0 ? 'é hoje: a Noite das Peregrinas' : (T.dias_para_festival === 1 ? 'dia para a Noite das Peregrinas' : 'dias para a Noite das Peregrinas');
+  } else { $('dias').textContent = '—'; $('dias-rotulo').textContent = T.evento_proximo || ''; }
+
+  /* ---- Cena ---- */
+  $('cena-titulo').textContent = S.titulo || '—';
+  $('cena-resumo').textContent = S.resumo || '';
+  if (S.imagem) { var im = $('cena-imagem'); im.src = S.imagem; im.alt = S.titulo || 'ilustração da cena'; im.hidden = false; }
+
+  function barraPV(pv) {
+    var max = pv.max || 1, atual = Math.max(0, pv.atual || 0), frac = atual / max;
+    var b = h('div', { class: 'barra' + (frac <= .25 ? ' grave' : frac <= .5 ? ' ferido' : '') }, [h('span')]);
+    b.firstChild.style.width = Math.round(frac * 100) + '%';
+    return b;
+  }
+  function cartaoCompanheiro(c) {
+    var pv = c.pv || { atual: 0, max: 0 };
+    return h('div', { class: 'secao', style: 'padding-block:8px' }, [
+      h('div', { style: 'display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap' }, [
+        h('strong', { text: c.nome }), h('span', { class: 'mono muted', text: 'PV ' + pv.atual + '/' + pv.max + (pv.temp ? ' (+' + pv.temp + ')' : '') })
+      ]),
+      barraPV(pv),
+      h('div', { class: 'muted', style: 'font-size:13px', text: [c.papel, c.condicoes && c.condicoes.length ? 'condições: ' + c.condicoes.join(', ') : null].filter(Boolean).join(' · ') })
+    ]);
+  }
+  var comps = E.companheiros || [];
+  var compBox = $('companheiros-cena');
+  if (!comps.length) compBox.appendChild(vazio('Ninguém ainda. Companheiros aparecem aqui quando se juntam ao grupo.'));
+  comps.forEach(function (c) { compBox.appendChild(cartaoCompanheiro(c)); });
+
+  function linhaRol(r) {
+    return h('div', { class: 'rol' }, [
+      h('div', {}, [h('div', { text: r.descricao || r.rotulo || 'rolagem' }), h('div', { class: 'mono muted', style: 'font-size:12px', text: (r.expressao || '') + (r.detalhe ? '  ' + r.detalhe : '') + (r.cd ? '  vs CD ' + r.cd : '') })]),
+      h('div', { class: 'tot mono', text: r.resultado != null ? r.resultado : (r.total != null ? r.total : '—') })
+    ]);
+  }
+  var rols = (E.rolagens || []).slice(-6).reverse();
+  var rolBox = $('rolagens-cena');
+  if (!rols.length) rolBox.appendChild(vazio('Nenhum dado rolado ainda.'));
+  rols.forEach(function (r) { rolBox.appendChild(linhaRol(r)); });
+
+  /* ---- Personagem ---- */
+  var PP = $('painel-personagem');
+  var P = E.personagem;
+  if (!P) {
+    PP.appendChild(h('div', { class: 'card quiet', style: 'padding:0;border:0' }, [
+      h('div', { class: 'eyebrow', text: 'Quem é você?' }),
+      h('h2', { text: 'Escolha um personagem ou descreva o seu' }),
+      h('p', { class: 'muted', style: 'margin-top:6px;max-width:68ch', text: 'Quatro personagens de nível 3, cada um com um laço com a Marca. Nome e gênero podem ser trocados. Diga à Mestra qual você quer, ou descreva raça, classe e um conceito em uma frase.' })
+    ]));
+    var g = h('div', { class: 'grid-2' });
+    (E.candidatos || []).forEach(function (c) {
+      var at = c.atributos || {};
+      g.appendChild(h('div', { class: 'card cand' }, [
+        h('div', {}, [h('div', { class: 'nome', text: c.nome }), h('div', { class: 'ep', text: c.epiteto })]),
+        h('div', { class: 'mini' }, [h('span', { text: c.raca }), h('span', { text: '·' }), h('span', { text: c.classe + ' ' + c.nivel }), h('span', { text: '·' }), h('span', { text: c.antecedente })]),
+        h('p', { text: c.resumo }),
+        h('div', { class: 'stats' }, [
+          h('div', { class: 'stat' }, [h('div', { class: 'v mono', text: c.pv }), h('div', { class: 'k', text: 'PV' })]),
+          h('div', { class: 'stat' }, [h('div', { class: 'v mono', text: c.ca }), h('div', { class: 'k', text: 'CA' })]),
+          h('div', { class: 'stat' }, [h('div', { class: 'v mono', text: mod(at.FOR || 10) + '/' + mod(at.DES || 10) + '/' + mod(at.CON || 10) }), h('div', { class: 'k', text: 'FOR DES CON' })]),
+          h('div', { class: 'stat' }, [h('div', { class: 'v mono', text: mod(at.INT || 10) + '/' + mod(at.SAB || 10) + '/' + mod(at.CAR || 10) }), h('div', { class: 'k', text: 'INT SAB CAR' })])
+        ]),
+        h('div', { class: 'chips' }, (c.destaques || []).map(function (d) { return h('span', { class: 'chip', text: d }); }))
+      ]));
+    });
+    PP.appendChild(g);
+  } else {
+    var pv = P.pv || { atual: 0, max: 0 }, at = P.atributos || {};
+    var topo = h('div', { class: 'card' }, [
+      h('div', { class: 'ficha-topo' }, [
+        h('div', {}, [h('div', { class: 'eyebrow', text: [P.raca, P.classe, P.subclasse ? '(' + P.subclasse + ')' : null, 'nível ' + P.nivel].filter(Boolean).join(' · ') }), h('h2', { text: P.nome }), h('div', { class: 'muted', text: [P.antecedente, P.alinhamento].filter(Boolean).join(' · ') })]),
+        h('div', { style: 'display:flex;gap:16px;flex-wrap:wrap;align-items:center' }, [
+          h('div', {}, [h('div', { class: 'eyebrow', text: 'Inspiração' }), h('div', { text: P.inspiracao ? 'sim' : 'não' })]),
+          h('div', {}, [h('div', { class: 'eyebrow', text: 'Sorte do Andarilho' }), h('div', { text: (P.sorte_do_andarilho || 0) + ' uso' })]),
+          h('div', {}, [h('div', { class: 'eyebrow', text: 'Marcas de Ressonância' }), h('div', { class: 'marcas' }, [0, 1, 2, 3, 4].map(function (i) { return h('span', { class: 'marca' + (i < (P.marcas_ressonancia || 0) ? ' ativa' : ''), title: 'Marca ' + (i + 1) }); }).concat([h('span', { class: 'mono muted', text: (P.marcas_ressonancia || 0) + '/5' })]))])
+        ])
+      ]),
+      h('div', { style: 'margin-top:14px;display:grid;gap:6px' }, [
+        h('div', { style: 'display:flex;justify-content:space-between' }, [h('span', { class: 'eyebrow', text: 'Pontos de vida' }), h('span', { class: 'mono', text: pv.atual + ' / ' + pv.max + (pv.temp ? ' (+' + pv.temp + ' temporários)' : '') })]),
+        barraPV(pv)
+      ]),
+      P.condicoes && P.condicoes.length ? h('div', { class: 'chips', style: 'margin-top:10px' }, P.condicoes.map(function (c) { return h('span', { class: 'chip', style: 'border-color:var(--bad);color:var(--bad)', text: c }); })) : null
+    ]);
+    PP.appendChild(topo);
+    PP.appendChild(h('div', { class: 'card' }, [
+      h('div', { class: 'atributos' }, ['FOR', 'DES', 'CON', 'INT', 'SAB', 'CAR'].map(function (k) {
+        return h('div', { class: 'atr' }, [h('div', { class: 'nome', text: k }), h('div', { class: 'mod mono', text: mod(at[k] || 10) }), h('div', { class: 'base mono', text: at[k] || 10 })]);
+      })),
+      h('div', { class: 'stats', style: 'margin-top:12px' }, [
+        ['CA', P.ca], ['Iniciativa', P.iniciativa], ['Desloc.', P.velocidade], ['Perc. passiva', P.percepcao_passiva], ['Prof.', P.proficiencia != null ? '+' + P.proficiencia : '+2'],
+        ['Dados de vida', P.dados_de_vida ? (P.dados_de_vida.total - (P.dados_de_vida.usados || 0)) + '/' + P.dados_de_vida.total + ' ' + P.dados_de_vida.tipo : null]
+      ].filter(function (x) { return x[1] != null; }).map(function (x) { return h('div', { class: 'stat' }, [h('div', { class: 'v mono', text: x[1] }), h('div', { class: 'k', text: x[0] })]); }))
+    ]));
+    var g2 = h('div', { class: 'grid-2' });
+    function secao(titulo, conteudo) { return h('div', { class: 'card secao' }, [h('h4', { text: titulo }), conteudo]); }
+    g2.appendChild(secao('Ataques', h('ul', { class: 'lista plain' }, (P.ataques || []).map(function (a) { return h('li', {}, [h('strong', { text: a.nome }), ' ', h('span', { class: 'mono', text: a.bonus }), ' · ', h('span', { text: a.dano })]); }))));
+    g2.appendChild(secao('Testes de resistência e perícias', h('div', { style: 'display:grid;gap:8px' }, [
+      h('div', { class: 'chips' }, (P.salvaguardas || []).map(function (s) { return h('span', { class: 'chip', text: 'Res. ' + s }); })),
+      h('div', { class: 'chips' }, (P.pericias || []).map(function (s) { return h('span', { class: 'chip', text: s }); }))
+    ])));
+    if (P.magias) {
+      var M = P.magias, slots = M.slots || {};
+      g2.appendChild(secao('Magias', h('div', { style: 'display:grid;gap:8px' }, [
+        h('div', { class: 'muted', style: 'font-size:13px', text: 'CD ' + (M.cd || '—') + ' · ataque ' + (M.ataque || '—') }),
+        h('div', { style: 'display:grid;gap:4px' }, Object.keys(slots).map(function (c) {
+          var s = slots[c]; var pips = [];
+          for (var i = 0; i < s.total; i++) pips.push(h('span', { class: 'pip' + (i < (s.usados || 0) ? ' usado' : '') }));
+          return h('div', { style: 'display:flex;gap:10px;align-items:center' }, [h('span', { class: 'mono', style: 'width:60px', text: c + 'º círculo' }), h('span', { class: 'pips' }, pips)]);
+        })),
+        M.truques && M.truques.length ? h('div', {}, [h('span', { class: 'eyebrow', text: 'Truques' }), h('div', { class: 'chips', style: 'margin-top:4px' }, M.truques.map(function (t) { return h('span', { class: 'chip', text: t }); }))]) : null,
+        M.conhecidas && M.conhecidas.length ? h('div', {}, [h('span', { class: 'eyebrow', text: M.rotulo_lista || 'Preparadas / conhecidas' }), h('div', { class: 'chips', style: 'margin-top:4px' }, M.conhecidas.map(function (t) { return h('span', { class: 'chip', text: t }); }))]) : null
+      ])));
+    }
+    g2.appendChild(secao('Traços e habilidades', h('ul', { class: 'lista' }, (P.tracos || []).map(function (t) { return h('li', { text: t }); }))));
+    var din = P.dinheiro || {};
+    g2.appendChild(secao('Equipamento', h('div', { style: 'display:grid;gap:8px' }, [
+      h('ul', { class: 'lista' }, (P.equipamento || []).map(function (t) { return h('li', { text: t }); })),
+      h('div', { class: 'mono muted', style: 'font-size:13px', text: 'Bolsa: ' + (din.po || 0) + ' po · ' + (din.pp || 0) + ' pp · ' + (din.pc || 0) + ' pc' })
+    ])));
+    if (P.notas) g2.appendChild(secao('Notas', h('p', { text: P.notas })));
+    PP.appendChild(g2);
+    if (comps.length) {
+      var gc = h('div', { class: 'grid-3' });
+      comps.forEach(function (c) { gc.appendChild(h('div', { class: 'card' }, [h('div', { class: 'eyebrow', text: 'Companheiro' }), cartaoCompanheiro(c), c.resumo ? h('p', { class: 'muted', style: 'font-size:13px', text: c.resumo }) : null])); });
+      PP.appendChild(gc);
+    }
+  }
+
+  /* ---- Mapa ---- */
+  var ICONES = { vila: '⌂', aldeia: '⌂', mina: '⚒', mosteiro: '✚', bosque: '♣', ruina: '♜', pantano: '≈', agua: '~', estrada: '→', outro: '•' };
+  var gl = $('lugares'), info = $('info-lugar');
+  var NS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs) { var el = document.createElementNS(NS, tag); Object.keys(attrs || {}).forEach(function (k) { el.setAttribute(k, attrs[k]); }); return el; }
+  function mostrarLugar(l) {
+    info.innerHTML = '';
+    info.appendChild(h('div', { class: 'secao' }, [
+      h('div', { style: 'display:flex;gap:10px;align-items:baseline;flex-wrap:wrap' }, [h('h3', { text: l.nome }), h('span', { class: 'pill' + (l.estado === 'atual' ? ' ativa' : ''), text: l.estado === 'atual' ? 'você está aqui' : l.estado === 'visitado' ? 'visitado' : 'só ouviu falar' })]),
+      h('p', { text: l.descricao || '' }),
+      l.notas ? h('p', { class: 'muted', style: 'font-size:13px', text: l.notas }) : null
+    ]));
+  }
+  (E.lugares || []).filter(function (l) { return l.estado !== 'desconhecido'; }).forEach(function (l) {
+    var g = svg('g', { class: 'lugar ' + l.estado, tabindex: '0', role: 'button', 'aria-label': l.nome });
+    if (l.estado === 'atual') g.appendChild(svg('circle', { class: 'pulso', cx: l.x, cy: l.y, r: 12 }));
+    var grande = l.tipo === 'vila';
+    g.appendChild(svg('circle', { class: 'fundo', cx: l.x, cy: l.y, r: grande ? 12 : 10 }));
+    var ic = svg('text', { class: 'icone', x: l.x, y: l.y + (l.tipo === 'agua' ? -1 : 0) }); ic.textContent = ICONES[l.tipo] || ICONES.outro; g.appendChild(ic);
+    var dx = l.rotulo_dx != null ? l.rotulo_dx : 15, dy = l.rotulo_dy != null ? l.rotulo_dy : 4;
+    var tx = svg('text', { class: 'rotulo', x: l.x + dx, y: l.y + dy }); tx.textContent = l.nome; g.appendChild(tx);
+    var abrir = function () { mostrarLugar(l); };
+    g.addEventListener('click', abrir);
+    g.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } });
+    gl.appendChild(g);
+  });
+  var atual = (E.lugares || []).filter(function (l) { return l.estado === 'atual'; })[0];
+  if (atual) mostrarLugar(atual);
+
+  /* ---- Combate ---- */
+  var PC = $('painel-combate'), K = E.combate || {};
+  if (!K.ativo) {
+    PC.appendChild(h('div', { class: 'card' }, [h('div', { class: 'eyebrow', text: 'Rastreador de combate' }), vazio('Nenhum combate em andamento. Quando as espadas saírem, a ordem de iniciativa e a grade tática aparecem aqui.')]));
+  } else {
+    var ordem = h('div', { class: 'ordem' });
+    (K.ordem || []).forEach(function (c, i) {
+      var cls = 'comb ' + (c.tipo || 'inimigo') + (i === (K.turno_indice || 0) ? ' ativo' : '');
+      var pvTxt = typeof c.pv === 'object' && c.pv ? c.pv.atual + '/' + c.pv.max : (c.pv != null ? String(c.pv) : (c.estado || ''));
+      ordem.appendChild(h('div', { class: cls }, [
+        h('div', { class: 'ini mono', text: c.iniciativa }),
+        h('div', {}, [h('strong', { text: c.nome }), c.condicoes && c.condicoes.length ? h('div', { class: 'muted', style: 'font-size:12px', text: c.condicoes.join(', ') }) : null]),
+        h('div', { class: 'mono muted', text: pvTxt })
+      ]));
+    });
+    PC.appendChild(h('div', { class: 'card' }, [
+      h('div', { style: 'display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline' }, [h('h2', { text: K.titulo || 'Combate' }), h('span', { class: 'pill combate', text: 'rodada ' + (K.rodada || 1) })]),
+      h('div', { style: 'margin-top:12px' }, [ordem])
+    ]));
+    if (K.grade && K.grade.largura && K.grade.altura) {
+      var G = K.grade, cel = 40, W = G.largura * cel, Hh = G.altura * cel;
+      var s = svg('svg', { class: 'grade', viewBox: '0 0 ' + W + ' ' + Hh, role: 'img', 'aria-label': 'grade tática' });
+      for (var x = 0; x <= G.largura; x++) s.appendChild(svg('line', { x1: x * cel, y1: 0, x2: x * cel, y2: Hh, stroke: 'var(--line)', 'stroke-width': 1 }));
+      for (var y = 0; y <= G.altura; y++) s.appendChild(svg('line', { x1: 0, y1: y * cel, x2: W, y2: y * cel, stroke: 'var(--line)', 'stroke-width': 1 }));
+      (G.terreno || []).forEach(function (t) {
+        var cor = t.tipo === 'parede' ? 'var(--fg-2)' : t.tipo === 'agua' ? 'var(--water)' : t.tipo === 'cristal' ? 'var(--crystal)' : 'var(--hill)';
+        s.appendChild(svg('rect', { x: t.x * cel, y: t.y * cel, width: cel, height: cel, fill: cor, opacity: t.tipo === 'parede' ? .85 : .5 }));
+      });
+      (G.tokens || []).forEach(function (t) {
+        var cor = t.tipo === 'pc' ? 'var(--ok)' : t.tipo === 'aliado' ? 'var(--crystal)' : 'var(--bad)';
+        var cx = t.x * cel + cel / 2, cy = t.y * cel + cel / 2;
+        s.appendChild(svg('circle', { cx: cx, cy: cy, r: cel * .4, fill: cor, stroke: 'var(--card)', 'stroke-width': 2 }));
+        var tt = svg('text', { x: cx, y: cy, 'font-size': 14 }); tt.textContent = t.rotulo || (t.nome || '?').slice(0, 2); s.appendChild(tt);
+      });
+      PC.appendChild(h('div', { class: 'card' }, [h('div', { class: 'eyebrow', text: 'Grade tática · 1 quadrado = 1,5 m' }), h('div', { style: 'margin-top:10px;overflow-x:auto' }, [s]),
+        h('div', { class: 'legenda', style: 'margin-top:10px' }, [h('span', { html: '<span class="sw" style="background:var(--ok);border-color:var(--ok)"></span>você' }), h('span', { html: '<span class="sw" style="background:var(--crystal);border-color:var(--crystal)"></span>aliados' }), h('span', { html: '<span class="sw" style="background:var(--bad);border-color:var(--bad)"></span>inimigos' })])]));
+    }
+    if (K.notas) PC.appendChild(h('div', { class: 'card' }, [h('p', { text: K.notas })]));
+  }
+
+  /* ---- Missões ---- */
+  var PM = $('painel-missoes'), ms = E.missoes || [];
+  if (!ms.length) PM.appendChild(h('div', { class: 'card' }, [vazio('Nenhuma missão registrada.')]));
+  ['ativa', 'concluida', 'falhou'].forEach(function (st) {
+    var grupo = ms.filter(function (m) { return (m.status || 'ativa') === st; });
+    if (!grupo.length) return;
+    var g = h('div', { class: 'grid-2' });
+    grupo.forEach(function (m) {
+      g.appendChild(h('div', { class: 'card missao' }, [
+        h('div', { style: 'display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap' }, [h('h3', { text: m.titulo }), h('span', { class: 'pill ' + st, text: st === 'ativa' ? 'em andamento' : st === 'concluida' ? 'concluída' : 'falhou' })]),
+        m.origem ? h('div', { class: 'muted', style: 'font-size:13px', text: m.origem + (m.recompensa ? ' · ' + m.recompensa : '') }) : null,
+        h('div', { style: 'display:grid;gap:6px' }, (m.objetivos || []).map(function (o) { return h('div', { class: 'obj' + (o.feito ? ' feito' : '') }, [h('span', { class: 'box' }), h('span', { text: o.texto })]); })),
+        m.notas ? h('p', { class: 'muted', style: 'font-size:13px', text: m.notas }) : null
+      ]));
+    });
+    PM.appendChild(g);
+  });
+
+  /* ---- Jornal ---- */
+  var PJ = $('painel-jornal'), js = (E.jornal || []).slice().reverse();
+  var jbox = h('div', { class: 'card jornal' });
+  if (!js.length) jbox.appendChild(vazio('O jornal começa quando a história começa.'));
+  js.forEach(function (j) { jbox.appendChild(h('div', { class: 'entrada' }, [h('div', { class: 'data', text: j.data }), h('div', { class: 'txt' }, [h('strong', { text: j.titulo }), h('p', { text: j.texto })])])); });
+  PJ.appendChild(jbox);
+  var todasRol = (E.rolagens || []).slice().reverse();
+  if (todasRol.length) { var rb = h('div', { class: 'card' }, [h('div', { class: 'eyebrow', text: 'Rolagens recentes' })]); todasRol.forEach(function (r) { rb.appendChild(linhaRol(r)); }); PJ.appendChild(rb); }
+
+  /* ---- NPCs ---- */
+  var PN = $('painel-npcs'), ns = E.npcs || [];
+  if (!ns.length) PN.appendChild(h('div', { class: 'card' }, [vazio('Você ainda não conheceu ninguém.')]));
+  else {
+    var gn = h('div', { class: 'grid-3' });
+    ns.forEach(function (n) {
+      gn.appendChild(h('div', { class: 'card npc' }, [
+        h('div', { style: 'display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap' }, [h('div', { class: 'nome', text: n.nome }), h('span', { class: 'pill ' + (n.atitude || ''), text: atitudeNome(n.atitude || 'neutro') })]),
+        h('div', { class: 'muted', style: 'font-size:13px', text: [n.papel, n.local].filter(Boolean).join(' · ') }),
+        n.notas ? h('p', { text: n.notas }) : null
+      ]));
+    });
+    PN.appendChild(gn);
+  }
+
+  /* ---- Abas ---- */
+  var abas = Array.prototype.slice.call(document.querySelectorAll('.aba'));
+  function ativar(nome, salvar) {
+    abas.forEach(function (b) { var on = b.getAttribute('data-aba') === nome; b.setAttribute('aria-selected', on ? 'true' : 'false'); var p = $('painel-' + b.getAttribute('data-aba')); if (p) p.hidden = !on; });
+    if (salvar) { try { localStorage.setItem('oitavo-canto-aba', nome); } catch (e) {} }
+  }
+  abas.forEach(function (b) { b.addEventListener('click', function () { ativar(b.getAttribute('data-aba'), true); }); });
+  var inicial = 'cena';
+  var hash = (location.hash || '').replace('#', '');
+  if (hash && $('painel-' + hash)) inicial = hash;
+  else { try { var s = localStorage.getItem('oitavo-canto-aba'); if (s && $('painel-' + s)) inicial = s; } catch (e) {} }
+  if (K.ativo && !hash) inicial = 'combate';
+  ativar(inicial, false);
+})();
+</script>

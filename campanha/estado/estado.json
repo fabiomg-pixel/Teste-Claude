@@ -1,0 +1,132 @@
+{
+  "campanha": {
+    "titulo": "O Oitavo Canto",
+    "subtitulo": "Uma campanha de D&D 5e em Aldemar",
+    "ato": "Ato I — A Febre Pálida",
+    "sessao": 1,
+    "atualizado_em": "2026-10-12",
+    "mestre": "Claude",
+    "jogador": "Fábio"
+  },
+  "tempo": {
+    "data": "24 de Vindima, Ano 411 do Reino",
+    "periodo": "crepúsculo",
+    "dias_para_festival": 7,
+    "evento_proximo": "Noite das Peregrinas (1 de Peregrina)"
+  },
+  "local": { "id": "candeia", "nome": "Vila Candeia", "detalhe": "Cais Velho" },
+  "cena": {
+    "titulo": "A carroça de Valfundo",
+    "modo": "exploracao",
+    "resumo": "A barcaça de Bento Varela encosta no Cais Velho ao pôr do sol. Lanternas apagadas em todos os beirais. Uma carroça passa com três doentes da Febre Pálida cobertos por linho. Uma menina cantarola. Os outros dois cantarolam junto, no mesmo compasso. Um arauto anuncia a recompensa da Castelã: 50 po a quem descobrir a origem da Febre antes da Noite das Peregrinas.",
+    "imagem": null
+  },
+  "personagem": null,
+  "candidatos": [
+    {
+      "id": "dalva",
+      "nome": "Dalva Ferreiro",
+      "epiteto": "A Sentinela",
+      "raca": "Humana",
+      "classe": "Guerreira (Mestra de Batalha)",
+      "nivel": 3,
+      "antecedente": "Soldado, Guarda da Muralha",
+      "resumo": "Vinte anos na Muralha de Inverno. Viu os cristais e o Canto. Dispensada após a Grande Parada, veio ao sul porque ouviu que uma menina em Valfundo cantarola. Ela conhece a melodia.",
+      "pv": 28, "ca": 18,
+      "atributos": { "FOR": 16, "DES": 13, "CON": 15, "INT": 10, "SAB": 12, "CAR": 8 },
+      "destaques": ["Espada longa +5 (1d8+5)", "Surto de Ação", "4 dados de superioridade", "Reconhece o Pó Pálido à vista"]
+    },
+    {
+      "id": "benicio",
+      "nome": "Benício Alvarenga",
+      "epiteto": "A Chama",
+      "raca": "Meio-elfo",
+      "classe": "Clérigo (Domínio da Luz)",
+      "nivel": 3,
+      "antecedente": "Acólito, Ordem da Brasa",
+      "resumo": "Criado no Monastério de Santa Ígnea. Fé sincera, dúvida crescente. Enviado a Candeia como os olhos da Ordem, suspeita que foi mandado para longe por fazer perguntas demais.",
+      "pv": 24, "ca": 17,
+      "atributos": { "FOR": 10, "DES": 12, "CON": 14, "INT": 10, "SAB": 16, "CAR": 14 },
+      "destaques": ["Cura e fogo sagrado", "Clarão Protetor", "Radiância da Alvorada", "A Ordem o escuta"]
+    },
+    {
+      "id": "elowen",
+      "nome": "Elowen do Bosque",
+      "epiteto": "A Raiz",
+      "raca": "Elfa da floresta",
+      "classe": "Druida (Círculo da Terra: Floresta)",
+      "nivel": 3,
+      "antecedente": "Eremita",
+      "resumo": "Aprendiz de Velha Ambrósia por trinta anos, saiu para ouvir florestas maiores. Voltou porque as árvores-sino do Caminho das Peregrinas cantam uma nota que não é delas.",
+      "pv": 24, "ca": 15,
+      "atributos": { "FOR": 8, "DES": 14, "CON": 14, "INT": 12, "SAB": 16, "CAR": 10 },
+      "destaques": ["Forma Selvagem", "Enredar, Onda Trovejante", "Falar com Animais", "O Bosque dos Sinos a conhece"]
+    },
+    {
+      "id": "otavio",
+      "nome": "Otávio Lencastre",
+      "epiteto": "A Lente",
+      "raca": "Humano",
+      "classe": "Mago (Escola de Adivinhação)",
+      "nivel": 3,
+      "antecedente": "Sábio, Colégio Veial",
+      "resumo": "Aluno de Oriana Vasques. Veio porque as cartas dela ao Colégio ficaram sem resposta, e porque o Arquimestre Alcântara sorriu de um jeito estranho quando ele perguntou por quê.",
+      "pv": 20, "ca": 12,
+      "atributos": { "FOR": 8, "DES": 13, "CON": 14, "INT": 16, "SAB": 12, "CAR": 10 },
+      "destaques": ["Presságio (2 d20 guardados)", "Mísseis Mágicos, Teia, Sono", "Rituais de identificação", "Oriana confia nele"]
+    }
+  ],
+  "companheiros": [],
+  "combate": { "ativo": false, "rodada": 0, "ordem": [], "grade": null },
+  "missoes": [
+    {
+      "id": "febre",
+      "titulo": "A origem da Febre Pálida",
+      "status": "ativa",
+      "origem": "Edital da Castelã Honória Valdez",
+      "recompensa": "50 po e a gratidão da Marca",
+      "objetivos": [
+        { "texto": "Descobrir a origem da Febre antes da Noite das Peregrinas", "feito": false },
+        { "texto": "Apresentar-se à Castelã no Castelo de Candeia", "feito": false }
+      ]
+    }
+  ],
+  "jornal": [
+    {
+      "data": "24 de Vindima",
+      "titulo": "Prólogo: a carroça de Valfundo",
+      "texto": "Chegada a Vila Candeia pela barcaça de Bento Varela. No cais, três doentes da Febre Pálida passam cobertos de linho, cantarolando em uníssono. Um arauto anuncia a recompensa da Castelã. No rodapé do edital, uma frase que ninguém lê em voz alta: o Festival não será adiado."
+    }
+  ],
+  "npcs": [
+    {
+      "nome": "Benedito \"Bento\" Varela",
+      "papel": "Piloto de barcaça",
+      "local": "Cais Velho, Vila Candeia",
+      "atitude": "amigavel",
+      "notas": "Halfling tagarela que conhece cada curva do Sussurro. Chama você de forasteiro."
+    },
+    {
+      "nome": "Castelã Honória Valdez",
+      "papel": "Governante da Marca de Brumal",
+      "local": "Castelo de Candeia",
+      "atitude": "desconhecido",
+      "notas": "Ofereceu 50 po por edital a quem descobrir a origem da Febre. Ainda não a conheceu."
+    }
+  ],
+  "lugares": [
+    { "id": "candeia", "nome": "Vila Candeia", "tipo": "vila", "x": 500, "y": 352, "estado": "atual", "descricao": "Sede da Marca. Porto fluvial onde o Sussurro encontra o Lago das Velas. Famosa pela Noite das Peregrinas." },
+    { "id": "lago", "nome": "Lago das Velas", "tipo": "agua", "x": 480, "y": 440, "estado": "visitado", "descricao": "Lago profundo. Dizem que brilha na noite do Festival." },
+    { "id": "valfundo", "nome": "Valfundo", "tipo": "aldeia", "x": 718, "y": 332, "estado": "conhecido", "descricao": "Aldeia de ex-mineiros a 3 léguas a leste. Primeiro foco da Febre." },
+    { "id": "ribeirinho", "nome": "Ribeirinho", "tipo": "aldeia", "x": 588, "y": 242, "estado": "conhecido", "descricao": "Aldeia de pescadores rio acima, 2 léguas ao norte." },
+    { "id": "pedra-tosca", "nome": "Pedra-Tosca", "tipo": "aldeia", "x": 640, "y": 530, "estado": "conhecido", "descricao": "Aldeia de pastores nas colinas do sul." },
+    { "id": "mata-escura", "nome": "Mata-Escura", "tipo": "aldeia", "x": 338, "y": 300, "estado": "conhecido", "descricao": "Aldeia de lenhadores na borda da Serrálvia. Gente fechada." },
+    { "id": "mina", "nome": "Minas de Cobre-Velho", "tipo": "mina", "x": 800, "y": 278, "estado": "desconhecido", "descricao": "Minas anãs abandonadas há 80 anos." },
+    { "id": "mosteiro", "nome": "Monastério de Santa Ígnea", "tipo": "mosteiro", "x": 520, "y": 92, "estado": "conhecido", "descricao": "Casa da Ordem da Brasa na Marca, sobre uma colina ao norte." },
+    { "id": "bosque", "nome": "Bosque dos Sinos", "tipo": "bosque", "x": 262, "y": 232, "estado": "desconhecido", "descricao": "Círculo sagrado na Serrálvia onde o Veio aflora." },
+    { "id": "pantano", "nome": "Pântano de Lamúria", "tipo": "pantano", "x": 780, "y": 520, "estado": "desconhecido", "descricao": "Pântano ao sudeste. Lar dos Ssuraki." },
+    { "id": "torre", "nome": "Torre de Alcácer", "tipo": "ruina", "x": 122, "y": 420, "estado": "desconhecido", "descricao": "Torre de vigia solânia em ruínas, no espigão oeste." },
+    { "id": "ilha", "nome": "Ilha do Sino Afogado", "tipo": "ruina", "x": 470, "y": 432, "estado": "desconhecido", "descricao": "Ilha no meio do lago com um campanário submerso." }
+  ],
+  "rolagens": []
+}
