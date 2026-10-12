@@ -43,3 +43,13 @@ Marque `[x]` quando o jogador descobrir. Se duas cadeias inteiras estiverem sem 
 - [ ] Ssuraki (caçadores no lago)
 - [ ] Bento (barco)
 - [ ] Cássia (cura)
+
+## Pistas próprias do personagem (Elowen)
+- [x] A0 A nota dos doentes é a mesma das árvores-sino do Caminho das Peregrinas. Liga a Febre ao Caminho, ainda sem as mariposas. Sessão 01.
+- [ ] A0b A mariposa adiantada que pousou na vagem. Se capturada e dissecada (Medicina ou Natureza CD 13), revela fios de cristal no abdômen, como em A2.
+
+## Decisões de mesa
+- **Vagens-sino e o Coro** (Sessão 01): tremem no compasso do Canto, diferente do tilintar limpo da magia comum, perto de concentrações fortes do Coro: doente em estágio avançado, Ressoante, Cristalino, Ninho, Pó em quantidade. Um barril de Óleo-de-Peregrina dispara; uma lamparina não. Uma mariposa isolada não basta. Perto de Elias, só tremem quando ele cantarola, e fraco: Percepção CD 13 para notar.
+- **Mariposa isolada** (Sessão 01): o pó só exige teste se for inalado de propósito ou sacudido no rosto. CON CD 12; falha dá 1 Marca.
+- **Falar com Animais com mariposas** (Sessão 01): insetos respondem por impressões, não frases. Luz. Doce. Frio que alimenta. Norte. Pedra que canta. Um lugar onde muitas pousam. Direções só com pergunta bem feita.
+- **Elowen conhece a Marca** (Sessão 01): lugares da Serrálvia e arredores entram no mapa como conhecidos ou visitados pelo antecedente. Elowen conhece a tradição de Mata-Escura de não acender fogo na Noite, mas não o motivo; só Ambrósia sabe que as mariposas seguem a luz.

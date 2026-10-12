@@ -6,7 +6,7 @@ Campanha solo mestrada pela Claude, jogada por texto, em português. Este diret�
 
 ## Como retomar uma sessão
 
-Abra uma sessão da Claude Code neste repositório e diga qualquer coisa de jogo ("vamos continuar", uma ação do personagem, "recapitula"). O `CLAUDE.md` na raiz instrui a Mestra a ler o estado e continuar de onde parou. Funciona com qualquer modelo (Opus, Sonnet, Fable).
+Abra uma sessão da Claude Code neste repositório e diga qualquer coisa de jogo ("vamos continuar", uma ação do personagem, "recapitula"). O `CLAUDE.md` na raiz instrui a Mestra a ler o estado e continuar de onde parou. Funciona com qualquer modelo.
 
 ## Estrutura
 

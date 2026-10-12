@@ -34,18 +34,19 @@ Criado no Monastério de Santa Ígnea desde os seis anos. Fé sincera, dúvida c
 - **Marcas**: 0. **Sorte**: 1.
 
 ## 3. Elowen do Bosque — A Raiz
-**Elfa da floresta · Druida (Círculo da Terra: Floresta) 3 · Eremita**
+**Elfo da floresta · Druida (Círculo da Terra: Floresta) 3 · Eremita**
 Foi aprendiz de Velha Ambrósia por trinta anos e saiu para ouvir florestas maiores. Voltou este outono porque as árvores-sino ao longo do Caminho das Peregrinas estão cantando uma nota que não é delas.
 
 - **PV** 24 · **CA** 15 (couro + escudo de madeira) · **Desl.** 10,5 m · **Iniciativa** +2 · **Percepção passiva** 15
 - FOR 8 (-1), DES 14 (+2), CON 14 (+2), INT 12 (+1), SAB 16 (+3), CAR 10 (+0)
 - **Testes de resistência**: INT +3, SAB +5
-- **Perícias**: Medicina +5, Natureza +3, Percepção +5, Sobrevivência +5
+- **Perícias**: Medicina +5, Natureza +3, Percepção +5, Religião +3, Sobrevivência +5
 - **Ataques**: cimitarra +4 (1d6+2 cortante); Chicote de Espinhos (+5, 1d6 perfurante, puxa 3 m)
 - **Magias** (CD 13, ataque +5): truques Chicote de Espinhos, Druidismo, Orientação. Espaços: 1º x4, 2º x2. Preparadas (6): Bom Fruto, Enredar, Fogo das Fadas, Curar Ferimentos, Onda Trovejante, Falar com Animais. Círculo (sempre preparadas): Pele de Árvore, Escalada de Aranha.
-- **Traços**: Forma Selvagem (2/descanso curto; ND 1/4, sem voo/natação; lobo, gato, corvo são favoritos); Recuperação Natural (recupera espaços num descanso curto, 1/dia, total de níveis 1); Máscara da Natureza; sentidos aguçados; transe em vez de sono.
-- **Equipamento**: armadura de couro, escudo de madeira, cimitarra, foco druídico (uma vagem-sino), bolsa de ervas, 12 vagens-sino secas, 8 po.
-- **Laço**: Ambrósia a recebe de volta. Mata-Escura a conhece. O Padrinho (urso-coruja) a lembra.
+- **Traços**: Forma Selvagem (2/descanso curto; ND 1/4, sem voo/natação; lobo, gato e aranha são favoritos; formas voadoras só a partir do 8º nível); Recuperação Natural (num descanso curto, recupera espaços que somem até 2 círculos, 1 vez por descanso longo); Máscara da Natureza; sentidos aguçados; transe em vez de sono.
+- **Equipamento**: armadura de couro, escudo de madeira, cimitarra, foco druídico (uma vagem-sino), kit de herbalismo, 12 vagens-sino secas, 8 po.
+- **Laço**: Ambrósia o recebe de volta. Mata-Escura o conhece. O Padrinho (urso-coruja) o lembra.
+- **Na campanha**: escolhido na Sessão 01 e jogado como elfo, masculino. A ficha viva está em `estado/estado.json`.
 - **Marcas**: 0. **Sorte**: 1.
 
 ## 4. Otávio Lencastre — A Lente
